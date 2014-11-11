@@ -30,11 +30,12 @@ object Build extends AutoPlugin {
       unmanagedSourceDirectories in Compile := List((scalaSource in Compile).value),
       unmanagedSourceDirectories in Test := List((scalaSource in Test).value),
       publishTo := {
+        val typesafe = "http://repo.typesafe.com/typesafe"
         val (name, u) =
           if (isSnapshot.value)
-            "internal-snapshots" -> url("http://repo.typesafe.com/typesafe/internal-maven-snapshots/")
+            "internal-snapshots" -> url(s"$typesafe/internal-maven-snapshots/")
           else
-            "internal-releases" -> url("http://repo.typesafe.com/typesafe/internal-maven-releases/")
+            "internal-releases" -> url(s"$typesafe/internal-maven-releases/")
         Some(sbt.Resolver.url(name, u))
       },
       // Scalariform settings

@@ -1,4 +1,4 @@
-lazy val akkaContribExtra = project.in(file("."))
+lazy val akkaContribExtra = project in file(".")
 
 name := "akka-contrib-extra"
 
