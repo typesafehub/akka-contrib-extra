@@ -1,5 +1,8 @@
 # akka-contrib-extra #
 
+[![Build Status](https://api.travis-ci.org/typesafehub/akka-contrib-extra.png?branch=master)](https://travis-ci.org/typesafehub/akka-contrib-extra)
+
+
 Welcome to akka-contrib-extra!
 
 The contents of this project are intended as an incubator for Akka related things that Reactive Runtime 
