@@ -1,6 +1,7 @@
 import com.typesafe.sbt.SbtScalariform._
 import sbt._
 import sbt.Keys._
+import sbtrelease.ReleasePlugin._
 import scalariform.formatter.preferences._
 
 object Build extends AutoPlugin {
@@ -13,12 +14,12 @@ object Build extends AutoPlugin {
 
   override def projectSettings =
     scalariformSettings ++
+    releaseSettings ++
     List(
       // Core settings
       organization := "com.typesafe.akka",
-      version := "0.1.0",
       scalaVersion := Version.scala,
-      crossScalaVersions := List(scalaVersion.value),
+      crossScalaVersions := List(scalaVersion.value, "2.10.4"),
       scalacOptions ++= List(
         "-unchecked",
         "-deprecation",
@@ -28,12 +29,21 @@ object Build extends AutoPlugin {
       ),
       unmanagedSourceDirectories in Compile := List((scalaSource in Compile).value),
       unmanagedSourceDirectories in Test := List((scalaSource in Test).value),
+      publishTo := {
+        val (name, u) =
+          if (isSnapshot.value)
+            "internal-snapshots" -> url("http://repo.typesafe.com/typesafe/internal-maven-snapshots/")
+          else
+            "internal-releases" -> url("http://repo.typesafe.com/typesafe/internal-maven-releases/")
+        Some(sbt.Resolver.url(name, u))
+      },
       // Scalariform settings
       ScalariformKeys.preferences := ScalariformKeys.preferences.value
-        .setPreference(AlignArguments, true)
-        .setPreference(AlignParameters, true)
         .setPreference(AlignSingleLineCaseStatements, true)
         .setPreference(AlignSingleLineCaseStatements.MaxArrowIndent, 100)
         .setPreference(DoubleIndentClassDeclaration, true)
+        .setPreference(PreserveDanglingCloseParenthesis, true),
+      // Release settings
+      ReleaseKeys.versionBump := sbtrelease.Version.Bump.Minor
     )
 }
