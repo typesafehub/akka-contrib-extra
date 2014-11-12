@@ -38,7 +38,6 @@ object Build extends AutoPlugin {
             "typesafe-releases" -> url(s"$typesafe/maven-releases/")
         Some(sbt.Resolver.url(name, u))
       },
-      ReleaseKeys.crossBuild := true,
       // Scalariform settings
       ScalariformKeys.preferences := ScalariformKeys.preferences.value
         .setPreference(AlignSingleLineCaseStatements, true)
@@ -46,6 +45,7 @@ object Build extends AutoPlugin {
         .setPreference(DoubleIndentClassDeclaration, true)
         .setPreference(PreserveDanglingCloseParenthesis, true),
       // Release settings
+      ReleaseKeys.crossBuild := true,
       ReleaseKeys.versionBump := sbtrelease.Version.Bump.Minor
     )
 }
