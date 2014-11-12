@@ -1,9 +1,9 @@
 import sbt._
 
 object Version {
-  val akka                = "2.3.6"
+  val akka                = "2.3.7"
   val akkaDataReplication = "0.8"
-  val akkaStream          = "0.10"
+  val akkaStream          = "0.11"
   val mockito             = "1.9.5"
   val scala               = "2.11.4"
   val scalaTest           = "2.2.2"
@@ -16,6 +16,7 @@ object Library {
   val mockitoAll          = "org.mockito"         %  "mockito-all"              % Version.mockito
   val scalaTest           = "org.scalatest"       %% "scalatest"                % Version.scalaTest
 }
+
 object Resolver {
   val patriknw = "patriknw at bintray" at "http://dl.bintray.com/patriknw/maven"
 }
