@@ -41,7 +41,7 @@ object BlockingProcess {
   /**
    * Create Props for a [[BlockingProcess]] actor.
    * @param receiver the actor to receive output and error events
-   * @param args the sequence of string arguments to pass to the process
+   * @param command signifies the program to be executed and its optional arguments
    * @param workingDir the working directory for the process; default is the current working directory
    * @param environment the environment for the process; default is `Map.emtpy`
    * @param isDetached whether the process will be daemonic; default is `false`
@@ -50,12 +50,12 @@ object BlockingProcess {
    */
   def props(
     receiver: ActorRef,
-    args: immutable.Seq[String],
+    command: immutable.Seq[String],
     workingDir: Path = new File(System.getProperty("user.dir")).toPath,
     environment: Map[String, String] = Map.empty,
     isDetached: Boolean = false,
     stdioTimeout: Duration = Duration.Undefined) =
-    Props(new BlockingProcess(receiver, args, workingDir, environment, isDetached, stdioTimeout))
+    Props(new BlockingProcess(receiver, command, workingDir, environment, isDetached, stdioTimeout))
 
   /**
    * This quoting functionality is as recommended per http://bugs.java.com/view_bug.do?bug_id=6511002
@@ -88,7 +88,7 @@ object BlockingProcess {
  */
 class BlockingProcess(
   receiver: ActorRef,
-  args: immutable.Seq[String],
+  command: immutable.Seq[String],
   directory: Path,
   environment: Map[String, String],
   isDetached: Boolean,
@@ -140,13 +140,13 @@ class BlockingProcess(
 
   private def startProcess(): JavaProcess = {
     import JavaConverters._
-    val pb = new JavaProcessBuilder(prepareArgs(args).asJava)
+    val pb = new JavaProcessBuilder(prepareCommand(command).asJava)
     pb.environment().putAll(environment.asJava)
     pb.directory(directory.toFile)
     pb.start()
   }
 
-  private def prepareArgs(args: immutable.Seq[String]): immutable.Seq[String] =
+  private def prepareCommand(args: immutable.Seq[String]): immutable.Seq[String] =
     if (Helpers.isWindows)
       args map winQuote
     else
