@@ -42,6 +42,14 @@ class ORMultiMap private (private[akka] val map: ORMap)
       ORMultiMap(map - key)
   }
 
+  def removeBindings(key: String, p: Any => Boolean)(implicit cluster: Cluster): ORMultiMap = {
+    val values = updateOrInit(key, values => (values /: values.value)(_ - _), ORSet.empty)
+    if (values.value.nonEmpty)
+      ORMultiMap(map + (key -> values))
+    else
+      ORMultiMap(map - key)
+  }
+
   private def updateOrInit(key: String, update: ORSet => ORSet, init: => ORSet): ORSet =
     map.get(key).asInstanceOf[Option[ORSet]] match {
       case Some(values) => update(values)
