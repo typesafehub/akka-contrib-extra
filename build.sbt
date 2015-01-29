@@ -3,7 +3,7 @@ lazy val akkaContribExtra = project in file(".")
 name := "akka-contrib-extra"
 
 libraryDependencies ++= List(
-  Library.akkaDataReplication,
+  Library.akkaCluster,
   Library.akkaStream,
   Library.akkaTestkit % "test",
   Library.mockitoAll  % "test",
