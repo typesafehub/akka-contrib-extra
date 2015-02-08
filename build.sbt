@@ -9,5 +9,3 @@ libraryDependencies ++= List(
   Library.mockitoAll  % "test",
   Library.scalaTest   % "test"
 )
-
-resolvers += Resolver.patriknw
