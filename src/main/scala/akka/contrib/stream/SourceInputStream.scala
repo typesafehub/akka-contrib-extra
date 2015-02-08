@@ -8,7 +8,7 @@ package akka.contrib.stream
 
 import akka.actor.{ ActorRef, ActorRefFactory, FSM, Props }
 import akka.pattern.ask
-import akka.stream.FlowMaterializer
+import akka.stream.ActorFlowMaterializer
 import akka.stream.actor.ActorSubscriberMessage.{ OnComplete, OnError, OnNext }
 import akka.stream.actor.{ ActorSubscriber, RequestStrategy, ZeroRequestStrategy }
 import akka.stream.scaladsl.{ Sink, Source }
@@ -199,9 +199,7 @@ class SourceInputStream(source: Source[ByteString], timeout: FiniteDuration)(imp
 
   import SourceInputStream._
 
-  private implicit val materializer = FlowMaterializer()
-
-  private implicit val askTimeout = Timeout(timeout)
+  private implicit val materializer = ActorFlowMaterializer()
 
   private val subscriber = factory.actorOf(ByteStringSubscriber.props(timeout))
 
@@ -210,15 +208,11 @@ class SourceInputStream(source: Source[ByteString], timeout: FiniteDuration)(imp
   override def close(): Unit =
     subscriber ! ByteStringSubscriber.Done
 
-  override final def read(): Int = {
+  override final def read(): Int =
     getBytes(1) match {
-      case Some(bs) =>
-        bs(0) & 0xff
-
-      case None =>
-        eot
+      case Some(bs) => bs(0) & 0xff
+      case None     => eot
     }
-  }
 
   override final def read(bytes: Array[Byte], offset: Int, len: Int): Int =
     getBytes(bytes.size) match {
@@ -232,7 +226,7 @@ class SourceInputStream(source: Source[ByteString], timeout: FiniteDuration)(imp
 
   private def getBytes(size: Int): Option[ByteString] =
     try
-      Await.result(subscriber ? ByteStringSubscriber.Read(size), timeout) match {
+      Await.result(subscriber.ask(ByteStringSubscriber.Read(size))(timeout), timeout) match {
         case bytes: ByteString =>
           subscriber ! ByteStringSubscriber.Ack
           Some(bytes)
