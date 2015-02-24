@@ -1,3 +1,5 @@
+import bintray.Plugin.bintrayPublishSettings
+import bintray.Keys._
 import com.typesafe.sbt.SbtScalariform._
 import sbt._
 import sbt.Keys._
@@ -15,6 +17,7 @@ object Build extends AutoPlugin {
   override def projectSettings =
     scalariformSettings ++
     releaseSettings ++
+    bintrayPublishSettings ++
     List(
       // Core settings
       organization := "com.typesafe.akka",
@@ -29,15 +32,8 @@ object Build extends AutoPlugin {
       ),
       unmanagedSourceDirectories in Compile := List((scalaSource in Compile).value),
       unmanagedSourceDirectories in Test := List((scalaSource in Test).value),
-      publishTo := {
-        val typesafe = "http://private-repo.typesafe.com/typesafe"
-        val (name, u) =
-          if (isSnapshot.value)
-            "typesafe-snapshots" -> url(s"$typesafe/maven-snapshots/")
-          else
-            "typesafe-releases" -> url(s"$typesafe/maven-releases/")
-        Some(sbt.Resolver.url(name, u))
-      },
+      bintrayOrganization in bintray := Some("akka-contrib-extra"),
+      licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0")),
       // Scalariform settings
       ScalariformKeys.preferences := ScalariformKeys.preferences.value
         .setPreference(AlignSingleLineCaseStatements, true)

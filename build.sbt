@@ -5,7 +5,9 @@ name := "akka-contrib-extra"
 libraryDependencies ++= List(
   Library.akkaCluster,
   Library.akkaStream,
-  Library.akkaTestkit % "test",
-  Library.mockitoAll  % "test",
-  Library.scalaTest   % "test"
+  Library.akkaHttp,
+  Library.akkaTestkit     % "test",
+  Library.akkaHttpTestkit % "test",
+  Library.mockitoAll      % "test",
+  Library.scalaTest       % "test"
 )
