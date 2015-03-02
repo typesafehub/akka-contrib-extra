@@ -32,7 +32,6 @@ object Build extends AutoPlugin {
       ),
       unmanagedSourceDirectories in Compile := List((scalaSource in Compile).value),
       unmanagedSourceDirectories in Test := List((scalaSource in Test).value),
-      bintrayOrganization in bintray := Some("akka-contrib-extra"),
       licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0")),
       // Scalariform settings
       ScalariformKeys.preferences := ScalariformKeys.preferences.value
@@ -42,6 +41,8 @@ object Build extends AutoPlugin {
         .setPreference(PreserveDanglingCloseParenthesis, true),
       // Release settings
       ReleaseKeys.crossBuild := true,
-      ReleaseKeys.versionBump := sbtrelease.Version.Bump.Minor
+      ReleaseKeys.versionBump := sbtrelease.Version.Bump.Minor,
+      // Bintray settings
+      bintrayOrganization in bintray := Some("akka-contrib-extra")
     )
 }
