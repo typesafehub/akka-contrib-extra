@@ -10,7 +10,6 @@ import akka.stream.actor.{ ActorPublisher, ActorSubscriber }
 import akka.util.{ ByteString, Helpers }
 import java.io.File
 import java.lang.{ Process => JavaProcess, ProcessBuilder => JavaProcessBuilder }
-import java.nio.file.Path
 import org.reactivestreams.{ Publisher, Subscriber }
 import scala.collection.JavaConverters
 import scala.collection.immutable
@@ -51,7 +50,7 @@ object BlockingProcess {
   def props(
     receiver: ActorRef,
     command: immutable.Seq[String],
-    workingDir: Path = new File(System.getProperty("user.dir")).toPath,
+    workingDir: File = new File(System.getProperty("user.dir")),
     environment: Map[String, String] = Map.empty,
     isDetached: Boolean = false,
     stdioTimeout: Duration = Duration.Undefined) =
@@ -89,7 +88,7 @@ object BlockingProcess {
 class BlockingProcess(
   receiver: ActorRef,
   command: immutable.Seq[String],
-  directory: Path,
+  directory: File,
   environment: Map[String, String],
   isDetached: Boolean,
   stdioTimeout: Duration)
@@ -142,7 +141,7 @@ class BlockingProcess(
     import JavaConverters._
     val pb = new JavaProcessBuilder(prepareCommand(command).asJava)
     pb.environment().putAll(environment.asJava)
-    pb.directory(directory.toFile)
+    pb.directory(directory)
     pb.start()
   }
 
