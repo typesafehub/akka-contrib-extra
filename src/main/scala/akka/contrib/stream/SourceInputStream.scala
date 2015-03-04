@@ -194,7 +194,7 @@ private object SourceInputStream {
 /**
  * Reads from a source in a blocking manner and in accordance with the JDK InputStream API.
  */
-class SourceInputStream(source: Source[ByteString], timeout: FiniteDuration)(implicit factory: ActorRefFactory)
+class SourceInputStream(source: Source[ByteString, Unit], timeout: FiniteDuration)(implicit factory: ActorRefFactory)
     extends InputStream {
 
   import SourceInputStream._

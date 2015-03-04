@@ -5,7 +5,7 @@
 package akka.contrib.process
 
 import akka.actor.{ Actor, ActorRef, ActorSystem, Props, Stash }
-import akka.stream.scaladsl.{ FlowGraph, FlowGraphImplicits, ImplicitFlowMaterializer, Merge, Sink, Source }
+import akka.stream.scaladsl.{ FlowGraph, ImplicitFlowMaterializer, Merge, Sink, Source }
 import akka.testkit.TestProbe
 import akka.util.ByteString
 import java.io.File
@@ -57,7 +57,7 @@ class Receiver(probe: ActorRef, stdinInput: immutable.Seq[String]) extends Actor
     with Stash
     with ImplicitFlowMaterializer {
 
-  import FlowGraphImplicits._
+  import FlowGraph.Implicits._
   import Receiver._
   import context.dispatcher
 
@@ -70,15 +70,15 @@ class Receiver(probe: ActorRef, stdinInput: immutable.Seq[String]) extends Actor
       val stderrFlow = Source(stderr).map(element => Err(element.utf8String))
       val tellProbeSink = Sink.foreach(probe.!)
       val graph =
-        FlowGraph { implicit builder =>
-          val merge = Merge[Any]
-          stdoutFlow ~> merge
-          stderrFlow ~> merge
-          merge ~> tellProbeSink
+        FlowGraph.closed(tellProbeSink) { implicit b =>
+          resultSink =>
+            val merge = b.add(Merge[AnyRef](inputPorts = 2))
+            stdoutFlow ~> merge.in(0)
+            stderrFlow ~> merge.in(1)
+            merge ~> resultSink
         }
       graph
         .run()
-        .get(tellProbeSink)
         .onComplete(_ => self ! "flow-complete")
 
     case "flow-complete" =>
