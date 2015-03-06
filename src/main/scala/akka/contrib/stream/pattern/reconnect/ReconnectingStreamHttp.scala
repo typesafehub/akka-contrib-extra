@@ -56,7 +56,7 @@ object ReconnectingStreamHttp {
   def outgoingConnection(host: String,
                          port: Int, reconnectInterval: FiniteDuration,
                          settings: Option[ClientConnectionSettings],
-                         maxRetries: Long = Long.MaxValue)
+                         maxRetries: Int = Int.MaxValue)
                         (onConnection: HttpConnected => Unit)
                         (implicit sys: ActorSystem, mat: FlowMaterializer): Future[ConnectionStatus] = {
     // format: ON
