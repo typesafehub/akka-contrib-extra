@@ -4,8 +4,8 @@ object Version {
   val akka                = "2.3.9"
   val akkaStream          = "1.0-M4"
   val mockito             = "1.9.5"
-  val scala               = "2.11.5"
-  val scalaTest           = "2.2.3"
+  val scala               = "2.11.6"
+  val scalaTest           = "2.2.4"
 }
 
 object Library {
