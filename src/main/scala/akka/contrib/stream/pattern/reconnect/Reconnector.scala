@@ -4,28 +4,26 @@
 
 package akka.contrib.stream.pattern.reconnect
 
-import java.net.InetSocketAddress
-
 import akka.actor._
-import Reconnector._
+import akka.contrib.stream.pattern.reconnect.Reconnector._
 import akka.stream.FlowMaterializer
 import akka.stream.stage.{ Context, Directive, PushStage, TerminationDirective }
 import akka.util.ByteString
-
+import java.net.InetSocketAddress
 import scala.concurrent.duration.FiniteDuration
 
 object Reconnector {
 
-  def props[T](data: ReconnectionData[T], mat: FlowMaterializer): Props =
+  def props[T <: ConnectionStatus](data: ReconnectionData[T], mat: FlowMaterializer): Props =
     Props(classOf[Reconnector[_, _]], data, mat)
 
-  trait ReconnectionData[T] {
+  trait ReconnectionData[T <: ConnectionStatus] {
     def address: InetSocketAddress
 
     def interval: FiniteDuration
     def retriesRemaining: Long
 
-    def onConnection: (ConnectionStatus => Unit)
+    def onConnection: (T => Unit)
 
     def decrementRetryCounter: ReconnectionData[T]
   }
@@ -53,7 +51,7 @@ object Reconnector {
 /**
  * Contains logic of issuing connect() calls within expected intervals if a connection terminates
  */
-abstract class Reconnector[T, D <: ReconnectionData[T]](initialData: D)
+abstract class Reconnector[T <: ConnectionStatus, D <: ReconnectionData[T]](initialData: D)
     extends Actor with ActorLogging {
 
   import context.dispatcher
@@ -66,13 +64,13 @@ abstract class Reconnector[T, D <: ReconnectionData[T]](initialData: D)
     case InitialConnect =>
       log.info("Opening initial connection to: {}", data)
       val connected = connect(data)
-      data.onConnection(connected.asInstanceOf[ConnectionStatus])
+      data.onConnection(connected.asInstanceOf[T])
       sender() ! connected
 
     case Reconnect if data.retriesRemaining > 0 =>
       data = data.decrementRetryCounter.asInstanceOf[D]
       log.info("Reconnecting to {}, {} retries remaining", data.address, data.retriesRemaining)
-      data.onConnection(connect(data).asInstanceOf[ConnectionStatus])
+      data.onConnection(connect(data))
 
     case Reconnect =>
       log.warning("Abandoning reconnecting to {} after {} retries!", data.address, initialData.retriesRemaining)
@@ -89,7 +87,8 @@ abstract class Reconnector[T, D <: ReconnectionData[T]](initialData: D)
   }
 
   /** Schedules an reconnect event when the upstream finishes (propagating the finishing) */
-  final class ReconnectStage[M](data: ReconnectionData[M])(implicit sys: ActorSystem, mat: FlowMaterializer) extends PushStage[ByteString, ByteString] {
+  final class ReconnectStage[M <: ConnectionStatus](data: ReconnectionData[M])(implicit sys: ActorSystem, mat: FlowMaterializer)
+      extends PushStage[ByteString, ByteString] {
 
     override def onPush(elem: ByteString, ctx: Context[ByteString]): Directive = ctx.push(elem)
 

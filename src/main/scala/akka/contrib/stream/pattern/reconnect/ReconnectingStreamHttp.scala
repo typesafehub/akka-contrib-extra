@@ -3,11 +3,9 @@
  */
 package akka.contrib.stream.pattern.reconnect
 
-import java.net.InetSocketAddress
-
 import akka.actor._
+import akka.contrib.stream.pattern.reconnect.Reconnector._
 import akka.http.Http
-import Reconnector._
 import akka.http.Http.OutgoingConnection
 import akka.http.engine.client.ClientConnectionSettings
 import akka.http.model.{ HttpRequest, HttpResponse }
@@ -15,7 +13,7 @@ import akka.pattern.ask
 import akka.stream.FlowMaterializer
 import akka.stream.scaladsl.Flow
 import akka.util.Timeout
-
+import java.net.InetSocketAddress
 import scala.concurrent.Future
 import scala.concurrent.duration.FiniteDuration
 import scala.language.postfixOps
@@ -33,7 +31,7 @@ object ReconnectingStreamHttp {
       interval: FiniteDuration,
       retriesRemaining: Long,
       settings: Option[ClientConnectionSettings],
-      onConnection: (ConnectionStatus => Unit)) extends ReconnectionData[HttpConnected] {
+      onConnection: (HttpConnected => Unit)) extends ReconnectionData[HttpConnected] {
     def decrementRetryCounter: HttpReconnectionData = copy(retriesRemaining = retriesRemaining - 1)
   }
 
@@ -43,7 +41,8 @@ object ReconnectingStreamHttp {
    * @param flow representing the http connection
    * @param reconnectionCancellable used to stop this connection from being re-established (when you want to cleanly close it)
    */
-  final case class HttpConnected(flow: Flow[HttpRequest, HttpResponse, Future[OutgoingConnection]], reconnectionCancellable: Cancellable) extends ConnectionStatus
+  final case class HttpConnected(flow: Flow[HttpRequest, HttpResponse, Future[OutgoingConnection]], reconnectionCancellable: Cancellable)
+    extends ConnectionStatus
 
   /**
    * Creates an actor monitored resilient connection which will be reconnected in given intervals in case of failure.
@@ -58,7 +57,7 @@ object ReconnectingStreamHttp {
                          port: Int, reconnectInterval: FiniteDuration,
                          settings: Option[ClientConnectionSettings],
                          maxRetries: Long = Long.MaxValue)
-                        (onConnection: ConnectionStatus => Unit)
+                        (onConnection: HttpConnected => Unit)
                         (implicit sys: ActorSystem, mat: FlowMaterializer): Future[ConnectionStatus] = {
     // format: ON
     require(maxRetries >= 0, "maxRetries must be >= 0")
@@ -85,5 +84,4 @@ object ReconnectingStreamHttp {
       HttpConnected(connection, StopSelf)
     }
   }
-
 }
