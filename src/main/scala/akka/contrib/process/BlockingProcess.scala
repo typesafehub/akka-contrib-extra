@@ -8,7 +8,7 @@ import akka.actor.{ Actor, ActorLogging, ActorRef, Props, SupervisorStrategy, Te
 import akka.contrib.stream.{ InputStreamPublisher, OutputStreamSubscriber }
 import akka.stream.actor.{ ActorPublisher, ActorSubscriber }
 import akka.util.{ ByteString, Helpers }
-import java.io.File
+import java.io.{ Closeable, File }
 import java.lang.{ Process => JavaProcess, ProcessBuilder => JavaProcessBuilder }
 import org.reactivestreams.{ Publisher, Subscriber }
 import scala.collection.JavaConverters
@@ -103,12 +103,15 @@ class BlockingProcess(
 
   private val stdin =
     context.actorOf(OutputStreamSubscriber.props(process.getOutputStream), "stdin")
+  context.actorOf(Closer.props(process.getOutputStream), "stdin-guardian")
 
   private val stdout =
     context.watch(context.actorOf(InputStreamPublisher.props(process.getInputStream, stdioTimeout), "stdout"))
+  context.actorOf(Closer.props(process.getInputStream), "stdout-guardian")
 
   private val stderr =
     context.watch(context.actorOf(InputStreamPublisher.props(process.getErrorStream, stdioTimeout), "stderr"))
+  context.actorOf(Closer.props(process.getErrorStream), "stderr-guardian")
 
   private var nrOfPublishers = 2
 
@@ -150,4 +153,26 @@ class BlockingProcess(
       args map winQuote
     else
       args
+}
+
+private object Closer {
+  def props(closeable: Closeable): Props =
+    Props(new Closer(closeable))
+}
+
+/*
+ * Responsible for closing a closeable in order to free up any blocked
+ * threads that attempt to read from the associated subtype e.g. a stream.
+ */
+private class Closer(closeable: Closeable) extends Actor {
+
+  override def receive =
+    Actor.emptyBehavior
+
+  override def postStop(): Unit =
+    try
+      closeable.close()
+    catch {
+      case _: Throwable =>
+    }
 }

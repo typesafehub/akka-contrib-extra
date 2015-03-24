@@ -4,7 +4,7 @@
 
 package akka.contrib.process
 
-import akka.actor.{ Actor, ActorRef, ActorSystem, Props, Stash }
+import akka.actor._
 import akka.stream.scaladsl.{ FlowGraph, ImplicitFlowMaterializer, Merge, Sink, Source }
 import akka.testkit.TestProbe
 import akka.util.ByteString
@@ -24,8 +24,8 @@ class BlockingProcessSpec extends WordSpec with Matchers with BeforeAndAfterAll 
 
       val probe = TestProbe()
       val stdinInput = List("abcd", "1234", "quit")
-      val receiver = system.actorOf(Props(new Receiver(probe.ref, stdinInput)), "receiver")
-      system.actorOf(BlockingProcess.props(receiver, List(command)), "process")
+      val receiver = system.actorOf(Props(new Receiver(probe.ref, stdinInput)), "receiver1")
+      system.actorOf(BlockingProcess.props(receiver, List(command)), "process1")
 
       var partiallyReceived = false
       probe.expectMsgPF(5.seconds) {
@@ -39,6 +39,23 @@ class BlockingProcessSpec extends WordSpec with Matchers with BeforeAndAfterAll 
         probe.expectMsg(Receiver.Out("1234"))
       }
       probe.expectMsg(BlockingProcess.Exited(0))
+    }
+
+    "allow a blocking process that is blocked to be destroyed" in {
+      val command = getClass.getResource("/sleep.sh").getFile
+      new File(command).setExecutable(true)
+
+      val probe = TestProbe()
+      val receiver = system.actorOf(Props(new Receiver(probe.ref, List.empty)), "receiver2")
+      val process = system.actorOf(BlockingProcess.props(receiver, List(command)), "process2")
+
+      probe.watch(process)
+
+      probe.expectMsg(Receiver.Out("Starting"))
+
+      system.stop(process)
+
+      probe.expectTerminated(process)
     }
   }
 
