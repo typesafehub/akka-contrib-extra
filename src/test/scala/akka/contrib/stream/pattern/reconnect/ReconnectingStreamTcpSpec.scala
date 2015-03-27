@@ -49,7 +49,7 @@ class ReconnectingStreamTcpSpec extends WordSpecLike with Matchers with BeforeAn
       val initial = StreamTcp.reconnecting.outgoingConnection(InSpaceNoOneCanHearYouConnect, reconnectInterval, maxRetries) { connected =>
         Source.failed(new TestException("Acting as if unable to connect!"))
           .via(connected.flow)
-          .runWith(Sink.ignore())
+          .runWith(Sink.ignore)
         p.ref ! connected
       }
 
@@ -74,13 +74,13 @@ class ReconnectingStreamTcpSpec extends WordSpecLike with Matchers with BeforeAn
     StreamTcp.reconnecting.outgoingConnection(host1, reconnectInterval, maxRetries1) { connected =>
       Source.failed(new TestException("Acting as if unable to connect!"))
         .via(connected.flow)
-        .runWith(Sink.ignore())
+        .runWith(Sink.ignore)
       p1.ref ! connected
     }
     StreamTcp.reconnecting.outgoingConnection(host2, reconnectInterval, maxRetries2) { connected =>
       Source.failed(new TestException("Acting as if unable to connect!"))
         .via(connected.flow)
-        .runWith(Sink.ignore())
+        .runWith(Sink.ignore)
       p2.ref ! connected
     }
 

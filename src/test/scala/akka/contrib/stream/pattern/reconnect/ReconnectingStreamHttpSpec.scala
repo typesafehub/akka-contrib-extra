@@ -49,7 +49,7 @@ class ReconnectingStreamHttpSpec extends WordSpecLike with Matchers with BeforeA
       val initial = Http.reconnecting.outgoingConnection(Localhost, reconnectInterval, maxRetries) { connected =>
         Source.failed(new TestException("Acting as if unable to connect!"))
           .via(connected.flow)
-          .runWith(Sink.ignore())
+          .runWith(Sink.ignore)
       }
 
       p.expectMsgType[Logging.Info].message.toString should startWith("Opening initial connection to: /127.0.0.1:80")
