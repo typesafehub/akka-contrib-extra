@@ -22,7 +22,7 @@ object Build extends AutoPlugin {
       // Core settings
       organization := "com.typesafe.akka",
       scalaVersion := Version.scala,
-      crossScalaVersions := List(scalaVersion.value, "2.10.4"),
+      crossScalaVersions := List(scalaVersion.value, "2.10.5"),
       scalacOptions ++= List(
         "-unchecked",
         "-deprecation",

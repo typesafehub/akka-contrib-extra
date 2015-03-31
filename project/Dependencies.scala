@@ -2,7 +2,7 @@ import sbt._
 
 object Version {
   val akka                = "2.3.9"
-  val akkaHttp          = "1.0-M5"
+  val akkaHttp            = "1.0-M5"
   val akkaStream          = "1.0-M5"
   val mockito             = "1.9.5"
   val scala               = "2.11.6"
