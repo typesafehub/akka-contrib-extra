@@ -4,6 +4,8 @@
 
 package akka.contrib.stream.pattern.reconnect
 
+import java.net.InetSocketAddress
+
 import akka.actor.ActorSystem
 import akka.event.Logging
 import akka.http.Http
@@ -30,7 +32,7 @@ class ReconnectingStreamHttpSpec extends WordSpecLike with Matchers with BeforeA
     system.awaitTermination(timeout.duration)
   }
 
-  val Localhost = "127.0.0.1"
+  final val Localhost = new InetSocketAddress("127.0.0.1", 80)
 
   implicit val mat = ActorFlowMaterializer()
 
@@ -46,16 +48,16 @@ class ReconnectingStreamHttpSpec extends WordSpecLike with Matchers with BeforeA
 
       // notice how we keep the APIs similar:
       // val singleConnection = Http().outgoingConnection(Localhost)
-      val initial = Http.reconnecting.outgoingConnection(Localhost, reconnectInterval, maxRetries) { connected =>
+      val initial = Http.reconnecting.outgoingConnection(Localhost.getHostName, reconnectInterval, maxRetries) { connected =>
         Source.failed(new TestException("Acting as if unable to connect!"))
           .via(connected.flow)
           .runWith(Sink.ignore)
       }
 
-      p.expectMsgType[Logging.Info].message.toString should startWith("Opening initial connection to: /127.0.0.1:80")
+      p.expectMsgType[Logging.Info].message.toString should startWith(s"Opening initial connection to: $Localhost")
       (1 to maxRetries) foreach { _ =>
-        p.expectMsgType[Logging.Info].message.toString should startWith("Connection to localhost/127.0.0.1:80 was closed abruptly, reconnecting!")
-        p.expectMsgType[Logging.Info].message.toString should startWith("Reconnecting to localhost/127.0.0.1:80")
+        p.expectMsgType[Logging.Info].message.toString should startWith(s"Connection to $Localhost was closed abruptly, reconnecting!")
+        p.expectMsgType[Logging.Info].message.toString should startWith(s"Reconnecting to $Localhost")
       }
 
       p.expectNoMsg(2.seconds)
