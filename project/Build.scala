@@ -43,6 +43,7 @@ object Build extends AutoPlugin {
       ReleaseKeys.crossBuild := true,
       ReleaseKeys.versionBump := sbtrelease.Version.Bump.Minor,
       // Bintray settings
-      bintrayOrganization in bintray := Some("akka-contrib-extra")
+      bintrayOrganization in bintray := Some("typesafe"),
+      repository in bintray := "maven-releases"
     )
 }
