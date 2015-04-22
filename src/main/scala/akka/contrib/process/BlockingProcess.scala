@@ -8,7 +8,7 @@ import akka.actor.{ Actor, ActorLogging, ActorRef, Props, SupervisorStrategy, Te
 import akka.contrib.stream.{ InputStreamPublisher, OutputStreamSubscriber }
 import akka.stream.actor.{ ActorPublisher, ActorSubscriber }
 import akka.util.{ ByteString, Helpers }
-import java.io.{ Closeable, File }
+import java.io.File
 import java.lang.{ Process => JavaProcess, ProcessBuilder => JavaProcessBuilder }
 import org.reactivestreams.{ Publisher, Subscriber }
 import scala.collection.JavaConverters
@@ -44,7 +44,6 @@ object BlockingProcess {
    * @param command signifies the program to be executed and its optional arguments
    * @param workingDir the working directory for the process; default is the current working directory
    * @param environment the environment for the process; default is `Map.emtpy`
-   * @param isDetached whether the process will be daemonic; default is `false`
    * @param stdioTimeout the amount of time to tolerate waiting for a process to communicate back to this actor
    * @return Props for a [[BlockingProcess]] actor
    */
@@ -53,9 +52,8 @@ object BlockingProcess {
     command: immutable.Seq[String],
     workingDir: File = new File(System.getProperty("user.dir")),
     environment: Map[String, String] = Map.empty,
-    isDetached: Boolean = false,
     stdioTimeout: Duration = Duration.Undefined) =
-    Props(new BlockingProcess(receiver, command, workingDir, environment, isDetached, stdioTimeout))
+    Props(new BlockingProcess(receiver, command, workingDir, environment, stdioTimeout))
 
   /**
    * This quoting functionality is as recommended per http://bugs.java.com/view_bug.do?bug_id=6511002
@@ -79,10 +77,10 @@ object BlockingProcess {
 
 /**
  * BlockingProcess encapsulates an operating system process and its ability to be communicated with via stdio i.e.
- * stdin, stdout and stderr. The reactive streams for stdio are communicated in a [[BlockingProcess.Started]] event
+ * stdin, stdout and stderr. The reactive streams for stdio are communicated in a BlockingProcess.Started event
  * upon the actor being established. The receiving actor, passed in as a constructor arg, is then subsequently streamed
  * stdout and stderr events. When there are no more stdout or stderr events then the process's exit code is
- * communicated to the receiver in a [[BlockingProcess.Exited]] event unless the process is a detached one.
+ * communicated to the receiver in a BlockingProcess.Exited event unless the process is a detached one.
  *
  * The actor should be associated with a dedicated dispatcher as various `java.io` calls are made which can block.
  */
@@ -91,7 +89,6 @@ class BlockingProcess(
   command: immutable.Seq[String],
   directory: File,
   environment: Map[String, String],
-  isDetached: Boolean,
   stdioTimeout: Duration)
     extends Actor with ActorLogging {
 
@@ -102,17 +99,18 @@ class BlockingProcess(
 
   private val process = startProcess()
 
+  // This shutdown hook is required because the stdio actors will be blocked on a read. The only
+  // reliable means of unblocking them is to destroy the thing they're listening to.
+  context.actorOf(ShutdownHook.props(() => process.destroy()), "process-destroyer")
+
   private val stdin =
     context.actorOf(OutputStreamSubscriber.props(process.getOutputStream), "stdin")
-  context.actorOf(Closer.props(process.getOutputStream), "stdin-closer")
 
   private val stdout =
     context.watch(context.actorOf(InputStreamPublisher.props(process.getInputStream, stdioTimeout), "stdout"))
-  context.actorOf(Closer.props(process.getInputStream), "stdout-closer")
 
   private val stderr =
     context.watch(context.actorOf(InputStreamPublisher.props(process.getErrorStream, stdioTimeout), "stderr"))
-  context.actorOf(Closer.props(process.getErrorStream), "stderr-closer")
 
   private var nrOfPublishers = 2
 
@@ -127,7 +125,7 @@ class BlockingProcess(
     case Terminated(publisher @ (`stdout` | `stderr`)) =>
       log.debug("Publisher {} has terminated", publisher.path.name)
       nrOfPublishers -= 1
-      if (nrOfPublishers == 0 && !isDetached) {
+      if (nrOfPublishers == 0) {
         val exitValue =
           blocking {
             process.waitFor()
@@ -137,9 +135,6 @@ class BlockingProcess(
         context.stop(self)
       }
   }
-
-  override def postStop(): Unit =
-    if (!isDetached) process.destroy()
 
   private def startProcess(): JavaProcess = {
     import JavaConverters._
@@ -156,23 +151,22 @@ class BlockingProcess(
       args
 }
 
-private object Closer {
-  def props(closeable: Closeable): Props =
-    Props(new Closer(closeable))
+private object ShutdownHook {
+  def props(op: () => Unit): Props =
+    Props(new ShutdownHook(op))
 }
 
 /*
- * Responsible for closing a closeable in order to free up any blocked
- * threads that attempt to read from the associated subtype e.g. a stream.
+ * Responsible for performing a side-effecting operation when the actor sys is required to shutdown.
  */
-private class Closer(closeable: Closeable) extends Actor {
+private class ShutdownHook(op: () => Unit) extends Actor {
 
   override def receive =
     Actor.emptyBehavior
 
   override def postStop(): Unit =
     try
-      closeable.close()
+      op()
     catch {
       case NonFatal(_) =>
     }
