@@ -1,14 +1,14 @@
 package akka.contrib.http
 
 import org.scalatest.{ Inside, Matchers, WordSpec }
-import akka.http.testkit.TestFrameworkInterface.Scalatest
-import akka.http.testkit.RouteTest
-import akka.http.model.headers._
-import akka.http.model.MediaTypes._
-import akka.http.model.StatusCodes._
-import akka.http.model.{ HttpEntity, HttpResponse, MediaRange }
-import akka.http.server.Directives._
-import akka.http.server.{ MalformedQueryParamRejection, Route }
+import akka.http.scaladsl.testkit.TestFrameworkInterface.Scalatest
+import akka.http.scaladsl.testkit.RouteTest
+import akka.http.scaladsl.model.headers._
+import akka.http.scaladsl.model.MediaTypes._
+import akka.http.scaladsl.model.StatusCodes._
+import akka.http.scaladsl.model.{ HttpEntity, HttpResponse, MediaRange }
+import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.{ MalformedQueryParamRejection, Route }
 
 class DirectivesSpec extends WordSpec with Matchers with Scalatest with RouteTest with Inside {
 

@@ -1,12 +1,12 @@
 package akka.contrib.http
 
-import akka.http.common.NameReceptacle
-import akka.http.model.MediaType
-import akka.http.model.headers.Accept
-import akka.http.server.{ Directive0, Directive1, MalformedQueryParamRejection, ValidationRejection }
-import akka.http.server.Directives._
-import akka.http.server.util.Tuple
-import akka.http.unmarshalling.{ FromStringUnmarshaller => FSU, Unmarshaller }
+import akka.http.scaladsl.common.NameReceptacle
+import akka.http.scaladsl.model.MediaType
+import akka.http.scaladsl.model.headers.Accept
+import akka.http.scaladsl.server.{ Directive0, Directive1, MalformedQueryParamRejection, ValidationRejection }
+import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.util.Tuple
+import akka.http.scaladsl.unmarshalling.{ FromStringUnmarshaller => FSU, Unmarshaller }
 import scala.util.{ Failure, Success }
 
 object Directives {
