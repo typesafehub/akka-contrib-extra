@@ -25,43 +25,63 @@ class BlockingProcessSpec extends WordSpec with Matchers with BeforeAndAfterAll 
       val probe = TestProbe()
       val stdinInput = List("abcd", "1234", "quit")
       val receiver = system.actorOf(Props(new Receiver(probe.ref, stdinInput)), "receiver1")
-      system.actorOf(BlockingProcess.props(receiver, List(command)), "process1")
+      val process = system.actorOf(BlockingProcess.props(receiver, List(command)), "process1")
 
-      var partiallyReceived = false
-      probe.expectMsgPF(5.seconds) {
-        case Receiver.Out("abcd1234") =>
-          true
-        case Receiver.Out("abcd") =>
-          partiallyReceived = true
-          true
-      }
+      val partiallyReceived =
+        probe.expectMsgPF() {
+          case Receiver.Out("abcd1234") =>
+            false
+          case Receiver.Out("abcd") =>
+            true
+        }
+
       if (partiallyReceived) {
         probe.expectMsg(Receiver.Out("1234"))
       }
-      probe.expectMsg(BlockingProcess.Exited(0))
+
+      probe.expectMsgPF() {
+        case BlockingProcess.Exited(x) => x
+      } shouldEqual 0
+
+      probe.watch(process)
+      probe.expectTerminated(process)
     }
 
     "allow a blocking process that is blocked to be destroyed" in {
-      val command = getClass.getResource("/sleep.sh").getFile
-      new File(command).setExecutable(true)
+      expectDestruction(viaDestroy = true)
+    }
 
-      val probe = TestProbe()
-      val receiver = system.actorOf(Props(new Receiver(probe.ref, List.empty)), "receiver2")
-      val process = system.actorOf(BlockingProcess.props(receiver, List(command)), "process2")
-
-      probe.watch(process)
-
-      probe.expectMsg(Receiver.Out("Starting"))
-
-      system.stop(process)
-
-      probe.expectTerminated(process, 10.seconds)
+    "allow a blocking process that is blocked to be stopped" in {
+      expectDestruction(viaDestroy = false)
     }
   }
 
   override protected def afterAll(): Unit = {
     system.shutdown()
     system.awaitTermination()
+  }
+
+  def expectDestruction(viaDestroy: Boolean): Unit = {
+    val command = getClass.getResource("/sleep.sh").getFile
+    new File(command).setExecutable(true)
+    val nameSeed = scala.concurrent.forkjoin.ThreadLocalRandom.current().nextLong()
+    val probe = TestProbe()
+    val receiver = system.actorOf(Props(new Receiver(probe.ref, List.empty)), "receiver" + nameSeed)
+    val process = system.actorOf(BlockingProcess.props(receiver, List(command)), "process" + nameSeed)
+
+    probe.expectMsg(Receiver.Out("Starting"))
+
+    if (viaDestroy)
+      process ! BlockingProcess.Destroy
+    else
+      system.stop(process)
+
+    probe.expectMsgPF(10.seconds) {
+      case BlockingProcess.Exited(value) => value
+    } should not be 0
+
+    probe.watch(process)
+    probe.expectTerminated(process, 10.seconds)
   }
 }
 
@@ -80,24 +100,16 @@ class Receiver(probe: ActorRef, stdinInput: immutable.Seq[String]) extends Actor
 
   override def receive: Receive = {
     case BlockingProcess.Started(stdin, stdout, stderr) =>
-      Source(stdinInput)
-        .map(ByteString.apply)
-        .runWith(Sink(stdin))
-      val stdoutFlow = Source(stdout).map(element => Out(element.utf8String))
-      val stderrFlow = Source(stderr).map(element => Err(element.utf8String))
-      val tellProbeSink = Sink.foreach(probe.!)
-      val graph =
-        FlowGraph.closed(tellProbeSink) { implicit b =>
-          resultSink =>
-            val merge = b.add(Merge[AnyRef](inputPorts = 2))
-            stdoutFlow ~> merge.in(0)
-            stderrFlow ~> merge.in(1)
-            merge ~> resultSink
-        }
-      graph
+      FlowGraph.closed(Sink.foreach(probe.!)) { implicit b =>
+        resultSink =>
+          val merge = b.add(Merge[AnyRef](inputPorts = 2))
+          Source(stdout).map(element => Out(element.utf8String)) ~> merge.in(0)
+          Source(stderr).map(element => Err(element.utf8String)) ~> merge.in(1)
+          merge ~> resultSink
+      }
         .run()
         .onComplete(_ => self ! "flow-complete")
-
+      Source(stdinInput).map(ByteString.apply).runWith(Sink(stdin))
     case "flow-complete" =>
       unstashAll()
       context become {

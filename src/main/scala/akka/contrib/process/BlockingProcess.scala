@@ -97,77 +97,57 @@ class BlockingProcess(
   override val supervisorStrategy: SupervisorStrategy =
     SupervisorStrategy.stoppingStrategy
 
-  private val process = startProcess()
+  override def preStart(): Unit = {
+    val process: JavaProcess = {
+      import JavaConverters._
+      val preparedCommand = if (Helpers.isWindows) command map winQuote else command
+      val pb = new JavaProcessBuilder(preparedCommand.asJava)
+      pb.environment().putAll(environment.asJava)
+      pb.directory(directory)
+      pb.start()
+    }
 
-  // This shutdown hook is required because the stdio actors will be blocked on a read. The only
-  // reliable means of unblocking them is to destroy the thing they're listening to.
-  context.actorOf(ShutdownHook.props(() => process.destroy()), "process-destroyer")
+    try {
+      val stdin =
+        context.actorOf(OutputStreamSubscriber.props(process.getOutputStream), "stdin")
 
-  private val stdin =
-    context.actorOf(OutputStreamSubscriber.props(process.getOutputStream), "stdin")
+      val stdout =
+        context.watch(context.actorOf(InputStreamPublisher.props(process.getInputStream, stdioTimeout), "stdout"))
 
-  private val stdout =
-    context.watch(context.actorOf(InputStreamPublisher.props(process.getInputStream, stdioTimeout), "stdout"))
+      val stderr =
+        context.watch(context.actorOf(InputStreamPublisher.props(process.getErrorStream, stdioTimeout), "stderr"))
 
-  private val stderr =
-    context.watch(context.actorOf(InputStreamPublisher.props(process.getErrorStream, stdioTimeout), "stderr"))
-
-  private var nrOfPublishers = 2
-
-  override def preStart(): Unit =
-    receiver ! Started(ActorSubscriber(stdin), ActorPublisher(stdout), ActorPublisher(stderr))
+      receiver ! Started(ActorSubscriber(stdin), ActorPublisher(stdout), ActorPublisher(stderr))
+    } finally {
+      val destroyer =
+        context.watch(context.actorOf(ProcessDestroyer.props(process, receiver), "process-destroyer"))
+    }
+  }
 
   override def receive = {
     case Destroy =>
       log.debug("Received request to destroy the process.")
-      process.destroy()
-
-    case Terminated(publisher @ (`stdout` | `stderr`)) =>
-      log.debug("Publisher {} has terminated", publisher.path.name)
-      nrOfPublishers -= 1
-      if (nrOfPublishers == 0) {
-        val exitValue =
-          blocking {
-            process.waitFor()
-            process.exitValue()
-          }
-        receiver ! Exited(exitValue)
-        context.stop(self)
-      }
+      context.stop(self)
+    case Terminated(ref) =>
+      log.debug("Child {} was unexpectedly stopped, shutting down process", ref.path)
+      context.stop(self)
   }
-
-  private def startProcess(): JavaProcess = {
-    import JavaConverters._
-    val pb = new JavaProcessBuilder(prepareCommand(command).asJava)
-    pb.environment().putAll(environment.asJava)
-    pb.directory(directory)
-    pb.start()
-  }
-
-  private def prepareCommand(args: immutable.Seq[String]): immutable.Seq[String] =
-    if (Helpers.isWindows)
-      args map winQuote
-    else
-      args
 }
 
-private object ShutdownHook {
-  def props(op: () => Unit): Props =
-    Props(new ShutdownHook(op))
+private object ProcessDestroyer {
+  def props(process: JavaProcess, exitValueReceiver: ActorRef): Props =
+    Props(new ProcessDestroyer(process, exitValueReceiver))
 }
 
-/*
- * Responsible for performing a side-effecting operation when the actor sys is required to shutdown.
- */
-private class ShutdownHook(op: () => Unit) extends Actor {
-
+private class ProcessDestroyer(process: JavaProcess, exitValueReceiver: ActorRef) extends Actor {
   override def receive =
     Actor.emptyBehavior
 
-  override def postStop(): Unit =
-    try
-      op()
-    catch {
-      case NonFatal(_) =>
+  override def postStop(): Unit = {
+    val exitValue = blocking {
+      process.destroy()
+      process.waitFor()
     }
+    exitValueReceiver ! BlockingProcess.Exited(exitValue)
+  }
 }
