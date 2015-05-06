@@ -4,7 +4,7 @@
 
 package akka.contrib.process
 
-import akka.actor.{ Actor, ActorLogging, ActorRef, Props, SupervisorStrategy, Terminated }
+import akka.actor.{ Actor, ActorLogging, ActorRef, NoSerializationVerificationNeeded, Props, SupervisorStrategy, Terminated }
 import akka.contrib.stream.{ InputStreamPublisher, OutputStreamSubscriber }
 import akka.stream.actor.{ ActorPublisher, ActorSubscriber }
 import akka.util.{ ByteString, Helpers }
@@ -15,17 +15,19 @@ import scala.collection.JavaConverters
 import scala.collection.immutable
 import scala.concurrent.blocking
 import scala.concurrent.duration.Duration
-import scala.util.control.NonFatal
 
 object BlockingProcess {
 
   /**
    * Sent to the receiver on startup - specifies the streams used for managing input, output and error respectively.
+   * This message should only be received by the parent of the BlockingProcess and should not be passed across the
+   * JVM boundary (the publishers are not serializable).
    * @param stdin a `org.reactivestreams.Subscriber` for the standard input stream of the process
    * @param stdout a `org.reactivestreams.Publisher` for the standard output stream of the process
    * @param stderr a `org.reactivestreams.Publisher` for the standard error stream of the process
    */
   case class Started(stdin: Subscriber[ByteString], stdout: Publisher[ByteString], stderr: Publisher[ByteString])
+    extends NoSerializationVerificationNeeded
 
   /**
    * Sent to the receiver after the process has exited.
@@ -40,7 +42,6 @@ object BlockingProcess {
 
   /**
    * Create Props for a [[BlockingProcess]] actor.
-   * @param receiver the actor to receive output and error events
    * @param command signifies the program to be executed and its optional arguments
    * @param workingDir the working directory for the process; default is the current working directory
    * @param environment the environment for the process; default is `Map.emtpy`
@@ -48,12 +49,11 @@ object BlockingProcess {
    * @return Props for a [[BlockingProcess]] actor
    */
   def props(
-    receiver: ActorRef,
     command: immutable.Seq[String],
     workingDir: File = new File(System.getProperty("user.dir")),
     environment: Map[String, String] = Map.empty,
     stdioTimeout: Duration = Duration.Undefined) =
-    Props(new BlockingProcess(receiver, command, workingDir, environment, stdioTimeout))
+    Props(new BlockingProcess(command, workingDir, environment, stdioTimeout))
 
   /**
    * This quoting functionality is as recommended per http://bugs.java.com/view_bug.do?bug_id=6511002
@@ -78,14 +78,13 @@ object BlockingProcess {
 /**
  * BlockingProcess encapsulates an operating system process and its ability to be communicated with via stdio i.e.
  * stdin, stdout and stderr. The reactive streams for stdio are communicated in a BlockingProcess.Started event
- * upon the actor being established. The receiving actor, passed in as a constructor arg, is then subsequently streamed
+ * upon the actor being established. The parent actor is then subsequently streamed
  * stdout and stderr events. When there are no more stdout or stderr events then the process's exit code is
  * communicated to the receiver in a BlockingProcess.Exited event unless the process is a detached one.
  *
  * The actor should be associated with a dedicated dispatcher as various `java.io` calls are made which can block.
  */
 class BlockingProcess(
-  receiver: ActorRef,
   command: immutable.Seq[String],
   directory: File,
   environment: Map[String, String],
@@ -117,10 +116,9 @@ class BlockingProcess(
       val stderr =
         context.watch(context.actorOf(InputStreamPublisher.props(process.getErrorStream, stdioTimeout), "stderr"))
 
-      receiver ! Started(ActorSubscriber(stdin), ActorPublisher(stdout), ActorPublisher(stderr))
+      context.parent ! Started(ActorSubscriber(stdin), ActorPublisher(stdout), ActorPublisher(stderr))
     } finally {
-      val destroyer =
-        context.watch(context.actorOf(ProcessDestroyer.props(process, receiver), "process-destroyer"))
+      context.watch(context.actorOf(ProcessDestroyer.props(process, context.parent), "process-destroyer"))
     }
   }
 
