@@ -5,17 +5,21 @@
 package akka.contrib.process
 
 import akka.actor._
+import akka.pattern.ask
 import akka.stream.scaladsl.{ FlowGraph, ImplicitFlowMaterializer, Merge, Sink, Source }
 import akka.testkit.TestProbe
-import akka.util.ByteString
+import akka.util.{ Timeout, ByteString }
 import java.io.File
 import org.scalatest.{ BeforeAndAfterAll, Matchers, WordSpec }
 import scala.collection.immutable
+import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
 
 class BlockingProcessSpec extends WordSpec with Matchers with BeforeAndAfterAll {
 
   implicit val system = ActorSystem("test", testConfig)
+
+  implicit val processCreationTimeout = Timeout(2.seconds)
 
   "A BlockingProcess" should {
     "read from stdin and write to stdout" in {
@@ -24,8 +28,8 @@ class BlockingProcessSpec extends WordSpec with Matchers with BeforeAndAfterAll 
 
       val probe = TestProbe()
       val stdinInput = List("abcd", "1234", "quit")
-      val receiver = system.actorOf(Props(new Receiver(probe.ref, stdinInput)), "receiver1")
-      val process = system.actorOf(BlockingProcess.props(receiver, List(command)), "process1")
+      val receiver = system.actorOf(Props(new Receiver(probe.ref, command, stdinInput, 1)), "receiver1")
+      val process = Await.result(receiver.ask(Receiver.Process).mapTo[ActorRef], processCreationTimeout.duration)
 
       val partiallyReceived =
         probe.expectMsgPF() {
@@ -66,8 +70,8 @@ class BlockingProcessSpec extends WordSpec with Matchers with BeforeAndAfterAll 
     new File(command).setExecutable(true)
     val nameSeed = scala.concurrent.forkjoin.ThreadLocalRandom.current().nextLong()
     val probe = TestProbe()
-    val receiver = system.actorOf(Props(new Receiver(probe.ref, List.empty)), "receiver" + nameSeed)
-    val process = system.actorOf(BlockingProcess.props(receiver, List(command)), "process" + nameSeed)
+    val receiver = system.actorOf(Props(new Receiver(probe.ref, command, List.empty, nameSeed)), "receiver" + nameSeed)
+    val process = Await.result(receiver.ask(Receiver.Process).mapTo[ActorRef], processCreationTimeout.duration)
 
     probe.expectMsg(Receiver.Out("Starting"))
 
@@ -77,7 +81,7 @@ class BlockingProcessSpec extends WordSpec with Matchers with BeforeAndAfterAll 
       system.stop(process)
 
     probe.expectMsgPF(10.seconds) {
-      case BlockingProcess.Exited(value) => value
+      case BlockingProcess.Exited(v) => v
     } should not be 0
 
     probe.watch(process)
@@ -86,19 +90,25 @@ class BlockingProcessSpec extends WordSpec with Matchers with BeforeAndAfterAll 
 }
 
 object Receiver {
+  case object Process
   case class Out(s: String)
   case class Err(s: String)
 }
 
-class Receiver(probe: ActorRef, stdinInput: immutable.Seq[String]) extends Actor
+class Receiver(probe: ActorRef, command: String, stdinInput: immutable.Seq[String], nameSeed: Long) extends Actor
     with Stash
     with ImplicitFlowMaterializer {
+
+  val process = context.actorOf(BlockingProcess.props(List(command)), "process" + nameSeed)
 
   import FlowGraph.Implicits._
   import Receiver._
   import context.dispatcher
 
   override def receive: Receive = {
+    case Process =>
+      sender() ! process
+
     case BlockingProcess.Started(stdin, stdout, stderr) =>
       FlowGraph.closed(Sink.foreach(probe.!)) { implicit b =>
         resultSink =>
