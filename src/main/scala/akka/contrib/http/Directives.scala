@@ -8,6 +8,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.util.Tuple
 import akka.http.scaladsl.unmarshalling.{ FromStringUnmarshaller => FSU, Unmarshaller }
 import scala.util.{ Failure, Success }
+import scala.concurrent.ExecutionContext
 
 object Directives {
 
@@ -30,7 +31,7 @@ object Directives {
    */
   def parameterList(pm: ParametersListMagnet): pm.Out = pm()
 
-  implicit def fromNameReceptacle[T](nr: NameReceptacle[T])(implicit fsu: FSU[T]) =
+  implicit def fromNameReceptacle[T](nr: NameReceptacle[T])(implicit fsu: FSU[T], ec: ExecutionContext) =
     new ParametersListMagnet {
       type Out = Directive1[List[T]]
       def apply() =
