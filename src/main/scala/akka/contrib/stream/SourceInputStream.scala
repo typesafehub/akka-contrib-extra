@@ -8,7 +8,7 @@ package akka.contrib.stream
 
 import akka.actor.{ ActorRef, ActorRefFactory, FSM, Props }
 import akka.pattern.ask
-import akka.stream.ActorFlowMaterializer
+import akka.stream.ActorMaterializer
 import akka.stream.actor.ActorSubscriberMessage.{ OnComplete, OnError, OnNext }
 import akka.stream.actor.{ ActorSubscriber, RequestStrategy, ZeroRequestStrategy }
 import akka.stream.scaladsl.{ Sink, Source }
@@ -199,7 +199,7 @@ class SourceInputStream(source: Source[ByteString, Unit], timeout: FiniteDuratio
 
   import SourceInputStream._
 
-  private implicit val materializer = ActorFlowMaterializer()
+  private implicit val materializer = ActorMaterializer()
 
   private val subscriber = factory.actorOf(ByteStringSubscriber.props(timeout))
 

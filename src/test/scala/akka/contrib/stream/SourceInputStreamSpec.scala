@@ -5,7 +5,7 @@
 package akka.contrib.stream
 
 import akka.actor.ActorSystem
-import akka.stream.ActorFlowMaterializer
+import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import java.io.InputStream
@@ -52,7 +52,7 @@ class SourceInputStreamSpec extends WordSpec with Matchers with BeforeAndAfterAl
 
   private implicit val system = ActorSystem("test", testConfig)
 
-  private implicit val materializer = ActorFlowMaterializer()
+  private implicit val materializer = ActorMaterializer()
 
   private val Utf8 = Charset.forName("UTF-8")
 
