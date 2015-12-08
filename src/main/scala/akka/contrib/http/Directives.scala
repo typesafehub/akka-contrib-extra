@@ -7,6 +7,7 @@ import akka.http.scaladsl.server.{ Directive0, Directive1, MalformedQueryParamRe
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.util.Tuple
 import akka.http.scaladsl.unmarshalling.{ FromStringUnmarshaller => FSU, Unmarshaller }
+import akka.stream.Materializer
 import scala.util.{ Failure, Success }
 import scala.concurrent.ExecutionContext
 
@@ -31,7 +32,7 @@ object Directives {
    */
   def parameterList(pm: ParametersListMagnet): pm.Out = pm()
 
-  implicit def fromNameReceptacle[T](nr: NameReceptacle[T])(implicit fsu: FSU[T], ec: ExecutionContext) =
+  implicit def fromNameReceptacle[T](nr: NameReceptacle[T])(implicit fsu: FSU[T], materializer: Materializer, ec: ExecutionContext) =
     new ParametersListMagnet {
       type Out = Directive1[List[T]]
       def apply() =

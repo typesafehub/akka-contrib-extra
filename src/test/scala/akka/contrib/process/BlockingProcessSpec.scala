@@ -6,6 +6,8 @@ package akka.contrib.process
 
 import akka.actor._
 import akka.pattern.ask
+import akka.stream.ClosedShape
+import akka.stream.javadsl.RunnableGraph
 import akka.stream.scaladsl.{ FlowGraph, ImplicitMaterializer, Merge, Sink, Source }
 import akka.testkit.TestProbe
 import akka.util.{ Timeout, ByteString }
@@ -110,15 +112,12 @@ class Receiver(probe: ActorRef, command: String, stdinInput: immutable.Seq[Strin
       sender() ! process
 
     case BlockingProcess.Started(stdin, stdout, stderr) =>
-      FlowGraph.closed(Sink.foreach(probe.!)) { implicit b =>
-        resultSink =>
-          val merge = b.add(Merge[AnyRef](inputPorts = 2))
-          Source(stdout).map(element => Out(element.utf8String)) ~> merge.in(0)
-          Source(stderr).map(element => Err(element.utf8String)) ~> merge.in(1)
-          merge ~> resultSink
-      }
-        .run()
+      Source(stdout)
+        .map(element => Out(element.utf8String))
+        .merge(Source(stderr).map(element => Err(element.utf8String)))
+        .runWith(Sink.foreach(probe.tell(_, Actor.noSender)))
         .onComplete(_ => self ! "flow-complete")
+
       Source(stdinInput).map(ByteString.apply).runWith(Sink(stdin))
     case "flow-complete" =>
       unstashAll()
