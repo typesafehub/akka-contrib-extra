@@ -5,15 +5,14 @@
 package akka.contrib.process
 
 import akka.actor.{ Actor, ActorLogging, ActorRef, NoSerializationVerificationNeeded, Props, SupervisorStrategy, Terminated }
-import akka.contrib.stream.{ InputStreamPublisher, OutputStreamSubscriber }
-import akka.stream.actor.{ ActorPublisher, ActorSubscriber }
+import akka.stream.Attributes
+import akka.stream.scaladsl.{ Sink, Source }
 import akka.util.{ ByteString, Helpers }
 import java.io.File
 import java.lang.{ Process => JavaProcess, ProcessBuilder => JavaProcessBuilder }
-import org.reactivestreams.{ Publisher, Subscriber }
 import scala.collection.JavaConverters
 import scala.collection.immutable
-import scala.concurrent.blocking
+import scala.concurrent.{ Future, blocking }
 import scala.concurrent.duration.Duration
 
 object BlockingProcess {
@@ -22,11 +21,11 @@ object BlockingProcess {
    * Sent to the receiver on startup - specifies the streams used for managing input, output and error respectively.
    * This message should only be received by the parent of the BlockingProcess and should not be passed across the
    * JVM boundary (the publishers are not serializable).
-   * @param stdin a `org.reactivestreams.Subscriber` for the standard input stream of the process
-   * @param stdout a `org.reactivestreams.Publisher` for the standard output stream of the process
-   * @param stderr a `org.reactivestreams.Publisher` for the standard error stream of the process
+   * @param stdin a `akka.stream.scaladsl.Sink[ByteString, Future[Long]]` for the standard input stream of the process
+   * @param stdout a `akka.stream.scaladsl.Source[ByteString, Future[Long]]` for the standard output stream of the process
+   * @param stderr a `akka.stream.scaladsl.Source[ByteString, Future[Long]]` for the standard error stream of the process
    */
-  case class Started(stdin: Subscriber[ByteString], stdout: Publisher[ByteString], stderr: Publisher[ByteString])
+  case class Started(stdin: Sink[ByteString, Future[Long]], stdout: Source[ByteString, Future[Long]], stderr: Source[ByteString, Future[Long]])
     extends NoSerializationVerificationNeeded
 
   /**
@@ -39,6 +38,21 @@ object BlockingProcess {
    * Terminate the associated process immediately. This will cause this actor to stop.
    */
   case object Destroy
+
+  /**
+   * Sent if stdin from the process is terminated
+   */
+  case object StdinTerminated
+
+  /**
+   * Sent if stdout from the process is terminated
+   */
+  case object StdoutTerminated
+
+  /**
+   * Sent if stderr from the process is terminated
+   */
+  case object StderrTerminated
 
   /**
    * Create Props for a [[BlockingProcess]] actor.
@@ -92,6 +106,7 @@ class BlockingProcess(
     extends Actor with ActorLogging {
 
   import BlockingProcess._
+  import context.dispatcher
 
   override val supervisorStrategy: SupervisorStrategy =
     SupervisorStrategy.stoppingStrategy
@@ -107,29 +122,54 @@ class BlockingProcess(
     }
 
     try {
-      val stdin =
-        context.actorOf(OutputStreamSubscriber.props(process.getOutputStream), "stdin")
+      val selfRef = context.self
 
-      val stdout =
-        context.watch(context.actorOf(InputStreamPublisher.props(process.getInputStream, stdioTimeout), "stdout"))
+      val stdin = Sink.outputStream(process.getOutputStream)
+        .mapMaterializedValue(_.andThen { case _ => selfRef ! StdinTerminated })
 
-      val stderr =
-        context.watch(context.actorOf(InputStreamPublisher.props(process.getErrorStream, stdioTimeout), "stderr"))
+      val stdout = Source.inputStream(process.getInputStream)
+        .withAttributes(Attributes.inputBuffer(1, 1))
+        .mapMaterializedValue(_.andThen { case _ => selfRef ! StdoutTerminated })
 
-      context.parent ! Started(ActorSubscriber(stdin), ActorPublisher(stdout), ActorPublisher(stderr))
+      val stderr = Source.inputStream(process.getErrorStream)
+        .withAttributes(Attributes.inputBuffer(1, 1))
+        .mapMaterializedValue(_.andThen { case _ => selfRef ! StderrTerminated })
+
+      context.parent ! Started(stdin, stdout, stderr)
     } finally {
       context.watch(context.actorOf(ProcessDestroyer.props(process, context.parent), "process-destroyer"))
     }
   }
 
-  override def receive = {
+  override def receive = handleMessages(stdOutTerminated = false, stdErrTerminated = false)
+
+  private def handleMessages(stdOutTerminated: Boolean, stdErrTerminated: Boolean): Receive = {
     case Destroy =>
       log.debug("Received request to destroy the process.")
       context.stop(self)
     case Terminated(ref) =>
       log.debug("Child {} was unexpectedly stopped, shutting down process", ref.path)
       context.stop(self)
+    case StdinTerminated =>
+      log.debug("Stdin was terminated")
+    case StdoutTerminated =>
+      if (stdErrTerminated) {
+        log.debug("Stdout and Stderr was terminated, shutting down process")
+        context.stop(self)
+      } else {
+        log.debug("Stdout was terminated")
+        context.become(handleMessages(stdOutTerminated = true, stdErrTerminated))
+      }
+    case StderrTerminated =>
+      if (stdOutTerminated) {
+        log.debug("Stdout and Stderr was terminated, shutting down process")
+        context.stop(self)
+      } else {
+        log.debug("Stderr was terminated")
+        context.become(handleMessages(stdOutTerminated, stdErrTerminated = true))
+      }
   }
+
 }
 
 private object ProcessDestroyer {

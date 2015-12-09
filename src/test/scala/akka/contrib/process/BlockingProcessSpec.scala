@@ -6,9 +6,7 @@ package akka.contrib.process
 
 import akka.actor._
 import akka.pattern.ask
-import akka.stream.ClosedShape
-import akka.stream.javadsl.RunnableGraph
-import akka.stream.scaladsl.{ FlowGraph, ImplicitMaterializer, Merge, Sink, Source }
+import akka.stream.scaladsl.{ ImplicitMaterializer, Sink, Source }
 import akka.testkit.TestProbe
 import akka.util.{ Timeout, ByteString }
 import java.io.File
@@ -98,12 +96,9 @@ object Receiver {
 }
 
 class Receiver(probe: ActorRef, command: String, stdinInput: immutable.Seq[String], nameSeed: Long) extends Actor
-    with Stash
-    with ImplicitMaterializer {
+    with Stash with ImplicitMaterializer {
 
   val process = context.actorOf(BlockingProcess.props(List(command)), "process" + nameSeed)
-
-  import FlowGraph.Implicits._
   import Receiver._
   import context.dispatcher
 
@@ -112,13 +107,13 @@ class Receiver(probe: ActorRef, command: String, stdinInput: immutable.Seq[Strin
       sender() ! process
 
     case BlockingProcess.Started(stdin, stdout, stderr) =>
-      Source(stdout)
+      stdout
         .map(element => Out(element.utf8String))
-        .merge(Source(stderr).map(element => Err(element.utf8String)))
+        .merge(stderr.map(element => Err(element.utf8String)))
         .runWith(Sink.foreach(probe.tell(_, Actor.noSender)))
         .onComplete(_ => self ! "flow-complete")
 
-      Source(stdinInput).map(ByteString.apply).runWith(Sink(stdin))
+      Source(stdinInput).map(ByteString.apply).runWith(stdin)
     case "flow-complete" =>
       unstashAll()
       context become {
