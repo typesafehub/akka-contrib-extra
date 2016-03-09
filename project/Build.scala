@@ -22,12 +22,11 @@ object Build extends AutoPlugin {
       // Core settings
       organization := "com.typesafe.akka",
       scalaVersion := Version.scala,
-      crossScalaVersions := List(scalaVersion.value, "2.10.5"),
       scalacOptions ++= List(
         "-unchecked",
         "-deprecation",
         "-language:_",
-        "-target:jvm-1.6",
+        "-target:jvm-1.8",
         "-encoding", "UTF-8"
       ),
       unmanagedSourceDirectories in Compile := List((scalaSource in Compile).value),
@@ -40,7 +39,6 @@ object Build extends AutoPlugin {
         .setPreference(DoubleIndentClassDeclaration, true)
         .setPreference(PreserveDanglingCloseParenthesis, true),
       // Release settings
-      ReleaseKeys.crossBuild := true,
       ReleaseKeys.versionBump := sbtrelease.Version.Bump.Minor,
       // Bintray settings
       bintrayOrganization in bintray := Some("typesafe"),
