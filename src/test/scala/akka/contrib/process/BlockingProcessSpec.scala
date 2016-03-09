@@ -6,7 +6,8 @@ package akka.contrib.process
 
 import akka.actor._
 import akka.pattern.ask
-import akka.stream.scaladsl.{ ImplicitMaterializer, Sink, Source }
+import akka.stream.{ ActorMaterializer, ActorMaterializerSettings }
+import akka.stream.scaladsl.{ Sink, Source }
 import akka.testkit.TestProbe
 import akka.util.{ Timeout, ByteString }
 import java.io.File
@@ -96,7 +97,9 @@ object Receiver {
 }
 
 class Receiver(probe: ActorRef, command: String, stdinInput: immutable.Seq[String], nameSeed: Long) extends Actor
-    with Stash with ImplicitMaterializer {
+    with Stash {
+
+  final implicit val materializer = ActorMaterializer(ActorMaterializerSettings(context.system))
 
   val process = context.actorOf(BlockingProcess.props(List(command)), "process" + nameSeed)
   import Receiver._
