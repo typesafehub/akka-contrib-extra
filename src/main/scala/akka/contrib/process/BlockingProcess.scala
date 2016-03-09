@@ -5,7 +5,7 @@
 package akka.contrib.process
 
 import akka.actor.{ Actor, ActorLogging, ActorRef, NoSerializationVerificationNeeded, Props, SupervisorStrategy, Terminated }
-import akka.stream.ActorAttributes
+import akka.stream.{ IOResult, ActorAttributes }
 import akka.stream.scaladsl.{ StreamConverters, Sink, Source }
 import akka.util.{ ByteString, Helpers }
 import java.io.File
@@ -21,15 +21,17 @@ object BlockingProcess {
    * Sent to the receiver on startup - specifies the streams used for managing input, output and error respectively.
    * This message should only be received by the parent of the BlockingProcess and should not be passed across the
    * JVM boundary (the publishers are not serializable).
-   * @param stdin a `akka.stream.scaladsl.Sink[ByteString, Future[Long]]` for the standard input stream of the process
-   * @param stdout a `akka.stream.scaladsl.Source[ByteString, Future[Long]]` for the standard output stream of the process
-   * @param stderr a `akka.stream.scaladsl.Source[ByteString, Future[Long]]` for the standard error stream of the process
+   *
+   * @param stdin a `akka.stream.scaladsl.Sink[ByteString, Future[IOResult]]` for the standard input stream of the process
+   * @param stdout a `akka.stream.scaladsl.Source[ByteString, Future[IOResult]]` for the standard output stream of the process
+   * @param stderr a `akka.stream.scaladsl.Source[ByteString, Future[IOResult]]` for the standard error stream of the process
    */
-  case class Started(stdin: Sink[ByteString, Future[Long]], stdout: Source[ByteString, Future[Long]], stderr: Source[ByteString, Future[Long]])
+  case class Started(stdin: Sink[ByteString, Future[IOResult]], stdout: Source[ByteString, Future[IOResult]], stderr: Source[ByteString, Future[IOResult]])
     extends NoSerializationVerificationNeeded
 
   /**
    * Sent to the receiver after the process has exited.
+   *
    * @param exitValue the exit value of the process
    */
   case class Exited(exitValue: Int)
@@ -56,6 +58,7 @@ object BlockingProcess {
 
   /**
    * Create Props for a [[BlockingProcess]] actor.
+   *
    * @param command signifies the program to be executed and its optional arguments
    * @param workingDir the working directory for the process; default is the current working directory
    * @param environment the environment for the process; default is `Map.emtpy`
