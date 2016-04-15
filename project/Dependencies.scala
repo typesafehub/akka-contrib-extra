@@ -1,7 +1,7 @@
 import sbt._
 
 object Version {
-  val akka       = "2.4.2"
+  val akka       = "2.4.4"
   val mockito    = "1.9.5"
   val scala      = "2.11.7"
   val scalaTest  = "2.2.4"
