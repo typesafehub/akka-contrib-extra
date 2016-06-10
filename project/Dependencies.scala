@@ -1,10 +1,10 @@
 import sbt._
 
 object Version {
-  val akka       = "2.4.4"
+  val akka       = "2.4.7"
   val mockito    = "1.9.5"
-  val scala      = "2.11.7"
-  val scalaTest  = "2.2.4"
+  val scala      = "2.11.8"
+  val scalaTest  = "2.2.6"
 }
 
 object Library {
