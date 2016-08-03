@@ -18,6 +18,11 @@ import scala.concurrent.duration.Duration
 object BlockingProcess {
 
   /**
+   * The configuration key to use in order to override the dispatcher used for blocking IO.
+   */
+  final val BlockingIODispatcherId = "akka.process.blocking-process.blocking-io-dispatcher-id"
+
+  /**
    * Sent to the receiver on startup - specifies the streams used for managing input, output and error respectively.
    * This message should only be received by the parent of the BlockingProcess and should not be passed across the
    * JVM boundary (the publishers are not serializable).
@@ -99,7 +104,8 @@ object BlockingProcess {
  * stdout and stderr events. When there are no more stdout or stderr events then the process's exit code is
  * communicated to the receiver in a BlockingProcess.Exited event unless the process is a detached one.
  *
- * The actor should be associated with a dedicated dispatcher as various `java.io` calls are made which can block.
+ * A dispatcher as indicated by the "akka.process.blocking-process.blocking-io-dispatcher-id" setting is used
+ * internally by the actor as various JDK calls are made which can block.
  */
 class BlockingProcess(
   command: immutable.Seq[String],
@@ -124,9 +130,11 @@ class BlockingProcess(
       pb.start()
     }
 
+    val blockingIODispatcherId = context.system.settings.config.getString(BlockingIODispatcherId)
+
     try {
       val selfRef = context.self
-      val selfDispatcherAttribute = ActorAttributes.dispatcher(context.props.dispatcher)
+      val selfDispatcherAttribute = ActorAttributes.dispatcher(blockingIODispatcherId)
 
       val stdin = StreamConverters.fromOutputStream(process.getOutputStream)
         .withAttributes(selfDispatcherAttribute)
@@ -141,8 +149,14 @@ class BlockingProcess(
         .mapMaterializedValue(_.andThen { case _ => selfRef ! StderrTerminated })
 
       context.parent ! Started(stdin, stdout, stderr)
+
+      log.debug(s"Blocking process started with dispatcher: $blockingIODispatcherId")
+
     } finally {
-      context.watch(context.actorOf(ProcessDestroyer.props(process, context.parent), "process-destroyer"))
+      context.watch(context.actorOf(
+        ProcessDestroyer.props(process, context.parent).withDispatcher(blockingIODispatcherId),
+        "process-destroyer"
+      ))
     }
   }
 
