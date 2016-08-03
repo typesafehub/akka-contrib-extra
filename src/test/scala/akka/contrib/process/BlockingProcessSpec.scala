@@ -59,6 +59,25 @@ class BlockingProcessSpec extends WordSpec with Matchers with BeforeAndAfterAll 
     "allow a blocking process that is blocked to be stopped" in {
       expectDestruction(viaDestroy = false)
     }
+
+    "be able to create the reference.conf specified limit of processes" in {
+      val command = getClass.getResource("/echo.sh").getFile
+      new File(command).setExecutable(true)
+
+      val probesAndProcesses = for (seed <- 1 to 100) yield {
+        val probe = TestProbe()
+        val receiver = system.actorOf(Props(new Receiver(probe.ref, command, List.empty, seed)), "receiver-ref-" + seed)
+        val process = Await.result(receiver.ask(Receiver.Process).mapTo[ActorRef], processCreationTimeout.duration)
+        (probe, process)
+      }
+
+      probesAndProcesses.foreach {
+        case (probe, process) =>
+          process ! BlockingProcess.Destroy
+          probe.watch(process)
+          probe.expectMsgAnyClassOf(classOf[Terminated], classOf[BlockingProcess.Exited])
+      }
+    }
   }
 
   override protected def afterAll(): Unit = {
