@@ -14,7 +14,7 @@ import java.io.File
 import org.scalatest.{ BeforeAndAfterAll, Matchers, WordSpec }
 import scala.collection.immutable
 import scala.concurrent.Await
-import scala.concurrent.duration.DurationInt
+import scala.concurrent.duration.{ Duration, DurationInt }
 
 class BlockingProcessSpec extends WordSpec with Matchers with BeforeAndAfterAll {
 
@@ -81,8 +81,7 @@ class BlockingProcessSpec extends WordSpec with Matchers with BeforeAndAfterAll 
   }
 
   override protected def afterAll(): Unit = {
-    system.shutdown()
-    system.awaitTermination()
+    Await.ready(system.terminate(), Duration.Inf)
   }
 
   def expectDestruction(viaDestroy: Boolean): Unit = {
