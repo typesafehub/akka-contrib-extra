@@ -6,6 +6,7 @@ libraryDependencies ++= List(
   Library.akkaCluster,
   Library.akkaStream,
   Library.akkaHttp,
+  Library.akkaDistributedData,
   Library.akkaTestkit     % "test",
   Library.akkaHttpTestkit % "test",
   Library.mockitoAll      % "test",
