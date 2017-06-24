@@ -136,15 +136,15 @@ class BlockingProcess(
       val selfRef = context.self
       val selfDispatcherAttribute = ActorAttributes.dispatcher(blockingIODispatcherId)
 
-      val stdin = StreamConverters.fromOutputStream(process.getOutputStream)
+      val stdin = StreamConverters.fromOutputStream(() => process.getOutputStream())
         .withAttributes(selfDispatcherAttribute)
         .mapMaterializedValue(_.andThen { case _ => selfRef ! StdinTerminated })
 
-      val stdout = StreamConverters.fromInputStream(process.getInputStream)
+      val stdout = StreamConverters.fromInputStream(() => process.getInputStream())
         .withAttributes(selfDispatcherAttribute)
         .mapMaterializedValue(_.andThen { case _ => selfRef ! StdoutTerminated })
 
-      val stderr = StreamConverters.fromInputStream(process.getErrorStream)
+      val stderr = StreamConverters.fromInputStream(() => process.getErrorStream())
         .withAttributes(selfDispatcherAttribute)
         .mapMaterializedValue(_.andThen { case _ => selfRef ! StderrTerminated })
 

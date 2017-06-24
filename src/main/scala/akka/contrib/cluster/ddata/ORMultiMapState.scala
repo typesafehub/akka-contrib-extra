@@ -15,22 +15,22 @@ import scala.collection.breakOut
  */
 object ORMultiMapState {
 
-  def noop[A](a: A) = ()
+  def noop[A](a: A): Unit = ()
 
   /**
    * Discern what has changed in the data and call back as appropriate.
    */
-  def changed[A](
-    oldData: Option[ORMultiMap[A]],
-    newData: Option[ORMultiMap[A]],
-    bindingAdded: (String, A) => Unit,
-    bindingRemoved: (String, A) => Unit,
-    bindingChanged: (String, A, A) => Unit,
-    distance: (A, A) => Option[Int] = (_: A, _: A) => None): Unit =
+  def changed[A, B](
+    oldData: Option[ORMultiMap[A, B]],
+    newData: Option[ORMultiMap[A, B]],
+    bindingAdded: (A, B) => Unit,
+    bindingRemoved: (A, B) => Unit,
+    bindingChanged: (A, B, B) => Unit,
+    distance: (B, B) => Option[Int] = (_: B, _: B) => None): Unit =
     (oldData, newData) match {
-      case (Some(oldData: ORMultiMap[A]), Some(newData: ORMultiMap[A])) =>
-        def bindings(data: ORMultiMap[A]) =
-          data.entries.flatMap { case (k, vs) => vs.map(k -> _) }(breakOut): Set[(String, A)]
+      case (Some(oldData: ORMultiMap[A, B]), Some(newData: ORMultiMap[A, B])) =>
+        def bindings(data: ORMultiMap[A, B]) =
+          data.entries.flatMap { case (k, vs) => vs.map(k -> _) }(breakOut): Set[(A, B)]
         def combinations[AC, BC](as: Set[AC], bs: Set[BC]) =
           for (a <- as; b <- bs) yield a -> b
         val oldBindings = bindings(oldData)
@@ -43,7 +43,7 @@ object ORMultiMapState {
           }
           .groupBy(_._1)
           .values
-          .flatMap(bs => (Set.empty[(String, (A, A))] /: bs.toList.sortBy(_._2._2)) {
+          .flatMap(bs => (Set.empty[(A, (B, B))] /: bs.toList.sortBy(_._2._2)) {
             case (acc, (k, ((v1, v2), _))) =>
               if (acc.forall { case (_, (vv1, vv2)) => vv1 != v1 && vv2 != v2 }) acc + (k -> (v1, v2)) else acc
           })
@@ -54,13 +54,13 @@ object ORMultiMapState {
         for ((k, (v1, v2)) <- changedBindings)
           bindingChanged(k, v1, v2)
 
-      case (None, Some(newData: ORMultiMap[A])) =>
+      case (None, Some(newData: ORMultiMap[A, B])) =>
         for {
           (key, newBindings) <- newData.entries
           element <- newBindings
         } bindingAdded(key, element)
 
-      case (Some(oldData: ORMultiMap[A]), None) =>
+      case (Some(oldData: ORMultiMap[A, B]), None) =>
         for {
           (key, oldBindings) <- oldData.entries
           element <- oldBindings
@@ -72,12 +72,12 @@ object ORMultiMapState {
   /**
    * Return bindings for a given key.
    */
-  def collectBindings[A](data: Option[ORMultiMap[A]], key: String): Set[A] =
+  def collectBindings[A, B](data: Option[ORMultiMap[A, B]], key: A): Set[B] =
     getOrEmpty(data).get(key).getOrElse(Set.empty)
 
   /**
    * Upwarp the given optional `ORMultiMap` or return an empty one.
    */
-  def getOrEmpty[A](data: Option[ORMultiMap[A]]): ORMultiMap[A] =
-    data.getOrElse(ORMultiMap.empty[A])
+  def getOrEmpty[A, B](data: Option[ORMultiMap[A, B]]): ORMultiMap[A, B] =
+    data.getOrElse(ORMultiMap.empty[A, B])
 }
