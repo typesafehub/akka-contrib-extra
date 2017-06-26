@@ -23,7 +23,7 @@ class ORMapStateSpec extends StateSpec {
   "ORMapState" should {
 
     "signal that an element is added with no previous data" in {
-      val entry = Some(ORMap.empty[Data] + ("foo" -> Data("bar")))
+      val entry = Some(ORMap.empty[String, Data] + ("foo" -> Data("bar")))
       def added(key: String, value: Data): Unit = {
         key shouldBe "foo"
         value shouldBe Data("bar")
@@ -38,7 +38,7 @@ class ORMapStateSpec extends StateSpec {
     }
 
     "signal that an element is added with some previous empty data" in {
-      val entry = Some(ORMap.empty[Data] + ("foo" -> Data("bar")))
+      val entry = Some(ORMap.empty[String, Data] + ("foo" -> Data("bar")))
       def added(key: String, value: Data): Unit = {
         key shouldBe "foo"
         value shouldBe Data("bar")
@@ -49,12 +49,12 @@ class ORMapStateSpec extends StateSpec {
       def changed(key: String, oldValue: Data, newValue: Data): Unit = {
         fail("Shouldn't be changed")
       }
-      ORMapState.changed(Some(ORMap.empty[Data]), entry, added, removed, changed)
+      ORMapState.changed(Some(ORMap.empty[String, Data]), entry, added, removed, changed)
     }
 
     "signal that an element is removed and then added with some previous changed data" in {
-      val oldEntry = Some(ORMap.empty[Data] + ("foo" -> Data("bar1")))
-      val newEntry = Some(ORMap.empty[Data] + ("foo" -> Data("bar2")))
+      val oldEntry = Some(ORMap.empty[String, Data] + ("foo" -> Data("bar1")))
+      val newEntry = Some(ORMap.empty[String, Data] + ("foo" -> Data("bar2")))
       def added(key: String, value: Data): Unit = {
         fail("Shouldn't be added")
       }
@@ -69,7 +69,7 @@ class ORMapStateSpec extends StateSpec {
     }
 
     "not signal that an element is added with the same previous data" in {
-      val entry = Some(ORMap.empty[Data] + ("foo" -> Data("bar")))
+      val entry = Some(ORMap.empty[String, Data] + ("foo" -> Data("bar")))
       def added(key: String, value: Data): Unit = {
         fail("Shouldn't be added")
 
@@ -84,7 +84,7 @@ class ORMapStateSpec extends StateSpec {
     }
 
     "signal that an element is removed with some previous data" in {
-      val entry = Some(ORMap.empty[Data] + ("foo" -> Data("bar")))
+      val entry = Some(ORMap.empty[String, Data] + ("foo" -> Data("bar")))
       def added(key: String, value: Data): Unit = {
         fail("Shouldn't be added")
       }
@@ -95,7 +95,7 @@ class ORMapStateSpec extends StateSpec {
       def changed(key: String, oldValue: Data, newValue: Data): Unit = {
         fail("Shouldn't be changed")
       }
-      ORMapState.changed(entry, Some(ORMap.empty[Data]), added, removed, changed)
+      ORMapState.changed(entry, Some(ORMap.empty[String, Data]), added, removed, changed)
     }
   }
 }

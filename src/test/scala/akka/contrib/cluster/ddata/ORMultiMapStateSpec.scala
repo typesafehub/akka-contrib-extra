@@ -12,7 +12,7 @@ class ORMultiMapStateSpec extends StateSpec {
 
   "ORMultiMapState" should {
     "discern a change for where there is no existing binding, but a new element" in {
-      val newData = ORMultiMap.empty[String].addBinding("a", "1")
+      val newData = ORMultiMap.empty[String, String].addBinding("a", "1")
 
       var bindingsAdded = Set.empty[String]
       def added(key: String, value: Any) = bindingsAdded += value.toString
@@ -24,8 +24,8 @@ class ORMultiMapStateSpec extends StateSpec {
     }
 
     "discern a change for where there is an existing binding, but a new element" in {
-      val oldData = ORMultiMap.empty[String].addBinding("a", "1")
-      val newData = ORMultiMap.empty[String].addBinding("a", "1").addBinding("a", "2")
+      val oldData = ORMultiMap.empty[String, String].addBinding("a", "1")
+      val newData = ORMultiMap.empty[String, String].addBinding("a", "1").addBinding("a", "2")
 
       var bindingsAdded = Set.empty[String]
       def added(key: String, value: String) = bindingsAdded += value
@@ -37,14 +37,14 @@ class ORMultiMapStateSpec extends StateSpec {
     }
 
     "do the right thing for a complex change" in {
-      val oldData = ORMultiMap.empty[Int]
+      val oldData = ORMultiMap.empty[String, Int]
         .addBinding("a", 1)
         .addBinding("a", 2)
         .addBinding("a", 3)
         .addBinding("b", 1)
         .addBinding("b", 2)
         .addBinding("b", 3)
-      val newData = ORMultiMap.empty[Int]
+      val newData = ORMultiMap.empty[String, Int]
         .addBinding("a", 1)
         .addBinding("a", 3)
         .addBinding("a", 4)
@@ -57,9 +57,9 @@ class ORMultiMapStateSpec extends StateSpec {
       ORMultiMapState.changed(
         Some(oldData),
         Some(newData),
-        (k, v: Int) => bindingsAdded += k -> v,
-        (k, v: Int) => bindingsRemoved += k -> v,
-        (k, v1: Int, v2: Int) => bindingsChanged += ((k, v1, v2)), // Damn auto-tupling!
+        (k: String, v: Int) => bindingsAdded += k -> v,
+        (k: String, v: Int) => bindingsRemoved += k -> v,
+        (k: String, v1: Int, v2: Int) => bindingsChanged += ((k, v1, v2)), // Damn auto-tupling!
         (v1: Int, v2: Int) => Some(v1 - v2)
       )
       bindingsAdded shouldBe Set("a" -> 5)

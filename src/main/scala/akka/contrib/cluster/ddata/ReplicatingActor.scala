@@ -11,9 +11,9 @@ import akka.cluster.ddata.DistributedData
 import akka.contrib.actor.EmptyActor
 
 /**
- * Base behavior for any actor that is to handle replicated state. To be used in conjunction with any of the
- * stack-able actors e.g. BundleExecutionState, BundleInfoState etc. Concrete implementers should ensure
- * that super.receive is called so that the stack-able traits can handle their related events.
+ * Base behavior for any actor that is to handle replicated state. To be used in conjunction with a
+ * stack-able actors. Concrete implementers should ensure that super.receive is called so that the
+ * stack-able traits can handle their related events.
  */
 abstract class ReplicatingActor extends EmptyActor {
   protected final val replicator: ActorRef =
