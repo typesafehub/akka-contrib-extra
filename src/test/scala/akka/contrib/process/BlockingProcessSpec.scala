@@ -78,6 +78,24 @@ class BlockingProcessSpec extends WordSpec with Matchers with BeforeAndAfterAll 
           probe.expectMsgAnyClassOf(classOf[Terminated], classOf[BlockingProcess.Exited])
       }
     }
+
+    "detect when a process has exited of its own accord" in {
+      val command = getClass.getResource("/loop.sh").getFile
+      new File(command).setExecutable(true)
+      val nameSeed = scala.concurrent.forkjoin.ThreadLocalRandom.current().nextLong()
+      val probe = TestProbe()
+      val receiver = system.actorOf(Props(new Receiver(probe.ref, command, List.empty, nameSeed)), "receiver" + nameSeed)
+      val process = Await.result(receiver.ask(Receiver.Process).mapTo[ActorRef], processCreationTimeout.duration)
+
+      probe.watch(process)
+
+      process ! BlockingProcess.Destroy
+
+      probe.fishForMessage(5.seconds) {
+        case BlockingProcess.Exited(r) => true
+        case _                         => false
+      }
+    }
   }
 
   override protected def afterAll(): Unit = {
