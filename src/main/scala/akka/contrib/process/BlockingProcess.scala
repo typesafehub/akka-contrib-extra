@@ -5,11 +5,13 @@
 package akka.contrib.process
 
 import akka.actor.{ Actor, ActorLogging, ActorRef, NoSerializationVerificationNeeded, Props, SupervisorStrategy, Terminated }
-import akka.stream.{ IOResult, ActorAttributes }
-import akka.stream.scaladsl.{ StreamConverters, Sink, Source }
+import akka.stream.{ ActorAttributes, IOResult }
+import akka.stream.scaladsl.{ Sink, Source, StreamConverters }
 import akka.util.{ ByteString, Helpers }
 import java.io.File
 import java.lang.{ Process => JavaProcess, ProcessBuilder => JavaProcessBuilder }
+import java.util.concurrent.TimeUnit
+
 import scala.collection.JavaConverters
 import scala.collection.immutable
 import scala.concurrent.{ Future, blocking }
@@ -42,9 +44,16 @@ object BlockingProcess {
   case class Exited(exitValue: Int)
 
   /**
-   * Terminate the associated process immediately. This will cause this actor to stop.
+   * Send a request to destroy the process.
+   * On POSIX, this sends a SIGTERM, but implementation is platform specific.
    */
   case object Destroy
+
+  /**
+   * Send a request to forcibly destroy the process.
+   * On POSIX, this sends a SIGKILL, but implementation is platform specific.
+   */
+  case object DestroyForcibly
 
   /**
    * Sent if stdin from the process is terminated
@@ -101,8 +110,8 @@ object BlockingProcess {
  * BlockingProcess encapsulates an operating system process and its ability to be communicated with via stdio i.e.
  * stdin, stdout and stderr. The reactive streams for stdio are communicated in a BlockingProcess.Started event
  * upon the actor being established. The parent actor is then subsequently streamed
- * stdout and stderr events. When there are no more stdout or stderr events then the process's exit code is
- * communicated to the receiver in a BlockingProcess.Exited event unless the process is a detached one.
+ * stdout and stderr events. When the process exists (determined by periodically polling process.isAlive()) then
+ * the process's exit code is communicated to the receiver in a BlockingProcess.Exited event.
  *
  * A dispatcher as indicated by the "akka.process.blocking-process.blocking-io-dispatcher-id" setting is used
  * internally by the actor as various JDK calls are made which can block.
@@ -133,20 +142,19 @@ class BlockingProcess(
     val blockingIODispatcherId = context.system.settings.config.getString(BlockingIODispatcherId)
 
     try {
-      val selfRef = context.self
       val selfDispatcherAttribute = ActorAttributes.dispatcher(blockingIODispatcherId)
 
       val stdin = StreamConverters.fromOutputStream(() => process.getOutputStream())
         .withAttributes(selfDispatcherAttribute)
-        .mapMaterializedValue(_.andThen { case _ => selfRef ! StdinTerminated })
+        .mapMaterializedValue(_.andThen { case _ => self ! StdinTerminated })
 
       val stdout = StreamConverters.fromInputStream(() => process.getInputStream())
         .withAttributes(selfDispatcherAttribute)
-        .mapMaterializedValue(_.andThen { case _ => selfRef ! StdoutTerminated })
+        .mapMaterializedValue(_.andThen { case _ => self ! StdoutTerminated })
 
       val stderr = StreamConverters.fromInputStream(() => process.getErrorStream())
         .withAttributes(selfDispatcherAttribute)
-        .mapMaterializedValue(_.andThen { case _ => selfRef ! StderrTerminated })
+        .mapMaterializedValue(_.andThen { case _ => self ! StderrTerminated })
 
       context.parent ! Started(stdin, stdout, stderr)
 
@@ -160,49 +168,85 @@ class BlockingProcess(
     }
   }
 
-  override def receive = handleMessages(stdOutTerminated = false, stdErrTerminated = false)
-
-  private def handleMessages(stdOutTerminated: Boolean, stdErrTerminated: Boolean): Receive = {
+  override def receive: Receive = {
     case Destroy =>
       log.debug("Received request to destroy the process.")
-      context.stop(self)
-    case Terminated(ref) =>
-      log.debug("Child {} was unexpectedly stopped, shutting down process", ref.path)
+      tellDestroyer(ProcessDestroyer.Destroy)
+    case DestroyForcibly =>
+      log.debug("Received request to forcibly destroy the process.")
+      tellDestroyer(ProcessDestroyer.DestroyForcibly)
+    case Terminated(_) =>
       context.stop(self)
     case StdinTerminated =>
       log.debug("Stdin was terminated")
+      tellDestroyer(ProcessDestroyer.Inspect)
     case StdoutTerminated =>
-      if (stdErrTerminated) {
-        log.debug("Stdout and Stderr was terminated, shutting down process")
-        context.stop(self)
-      } else {
-        log.debug("Stdout was terminated")
-        context.become(handleMessages(stdOutTerminated = true, stdErrTerminated))
-      }
+      log.debug("Stdout was terminated")
+      tellDestroyer(ProcessDestroyer.Inspect)
     case StderrTerminated =>
-      if (stdOutTerminated) {
-        log.debug("Stdout and Stderr was terminated, shutting down process")
-        context.stop(self)
-      } else {
-        log.debug("Stderr was terminated")
-        context.become(handleMessages(stdOutTerminated, stdErrTerminated = true))
-      }
+      log.debug("Stderr was terminated")
+      tellDestroyer(ProcessDestroyer.Inspect)
   }
 
+  private def tellDestroyer(msg: Any) = context.child("process-destroyer").foreach(_ ! msg)
 }
 
 private object ProcessDestroyer {
+  /**
+   * The configuration key to use for the inspection interval.
+   */
+  final val InspectionInterval = "akka.process.blocking-process.inspection-interval"
+
+  /**
+   * Inspect the Process to ensure it is still alive. This is necessary because
+   * a process can exit without its stdout/stderr file handles being closed, for
+   * instance if a process forks and a child continues to run when it dies,
+   * it will have a reference to those handles.
+   */
+  case object Inspect
+
+  /**
+   * Request that process.destroy() be called
+   */
+  case object Destroy
+
+  /**
+   * Request that process.destroyForcibly() be called
+   */
+  case object DestroyForcibly
+
   def props(process: JavaProcess, exitValueReceiver: ActorRef): Props =
     Props(new ProcessDestroyer(process, exitValueReceiver))
 }
 
-private class ProcessDestroyer(process: JavaProcess, exitValueReceiver: ActorRef) extends Actor {
-  override def receive =
-    Actor.emptyBehavior
+private class ProcessDestroyer(process: JavaProcess, exitValueReceiver: ActorRef) extends Actor with ActorLogging {
+  import ProcessDestroyer._
+  import context.dispatcher
+
+  private val inspectionInterval =
+    Duration(context.system.settings.config.getDuration(InspectionInterval).toMillis, TimeUnit.MILLISECONDS)
+
+  private val inspectionTick =
+    context.system.scheduler.schedule(inspectionInterval, inspectionInterval, self, Inspect)
+
+  override def receive = {
+    case Destroy =>
+      blocking(process.destroy())
+    case DestroyForcibly =>
+      blocking(process.destroyForcibly())
+    case Inspect =>
+      if (!process.isAlive()) {
+        log.debug("Process has terminated, stopping self")
+        context.stop(self)
+      }
+  }
 
   override def postStop(): Unit = {
+    inspectionTick.cancel()
+
     val exitValue = blocking {
       process.destroy()
+      process.destroyForcibly()
       process.waitFor()
     }
     exitValueReceiver ! BlockingProcess.Exited(exitValue)
