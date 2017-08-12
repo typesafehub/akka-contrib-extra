@@ -1,11 +1,12 @@
 import sbt._
 
 object Version {
-  val akka       = "2.4.14"
-  val akkaHttp   = "10.0.0"
+  val akka       = "2.4.20"
+  val akkaHttp   = "10.0.8"
   val mockito    = "1.9.5"
-  val scala      = "2.11.8"
-  val scalaTest  = "2.2.6"
+  val nuprocess  = "1.1.2"
+  val scala      = "2.11.11"
+  val scalaTest  = "3.0.1"
 }
 
 object Library {
@@ -16,5 +17,6 @@ object Library {
   val akkaTestkit           = "com.typesafe.akka" %% "akka-testkit"                       % Version.akka
   val akkaHttpTestkit       = "com.typesafe.akka" %% "akka-http-testkit"                  % Version.akkaHttp
   val mockitoAll            = "org.mockito"       %  "mockito-all"                        % Version.mockito
+  val nuprocess             = "com.zaxxer"        %  "nuprocess"                          % Version.nuprocess
   val scalaTest             = "org.scalatest"     %% "scalatest"                          % Version.scalaTest
 }

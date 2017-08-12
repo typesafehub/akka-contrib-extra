@@ -7,6 +7,7 @@ libraryDependencies ++= List(
   Library.akkaStream,
   Library.akkaHttp,
   Library.akkaDistributedData,
+  Library.nuprocess,
   Library.akkaTestkit     % "test",
   Library.akkaHttpTestkit % "test",
   Library.mockitoAll      % "test",

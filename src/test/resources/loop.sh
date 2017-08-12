@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 
-logger my pid is $$
+# The idea here is to start a child (sleep 10) that will live on after we've
+# sigkilled ourselves -- which happens when we trap a sigterm
 
-trap 'logger killing $$; kill -9 $$' SIGTERM
+pid=$$
+trap "kill -9 $pid" TERM
+sleep 10 &
+printf ready
 
-1>&2 sleep 8 &
-wait
+while true; do
+    sleep 1
+done
