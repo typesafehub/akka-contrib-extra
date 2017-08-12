@@ -107,6 +107,9 @@ object BlockingProcess {
 }
 
 /**
+ * This actor uses the JDK process API. As such, more memory given that more threads are consumed. Favor the
+ * [[NonBlockingProcess]] actor unless you *need* to use the JDK.
+ *
  * BlockingProcess encapsulates an operating system process and its ability to be communicated with via stdio i.e.
  * stdin, stdout and stderr. The reactive streams for stdio are communicated in a BlockingProcess.Started event
  * upon the actor being established. The parent actor is then subsequently streamed
@@ -235,7 +238,7 @@ private class ProcessDestroyer(process: JavaProcess, exitValueReceiver: ActorRef
     case DestroyForcibly =>
       blocking(process.destroyForcibly())
     case Inspect =>
-      if (!process.isAlive()) {
+      if (!process.isAlive) {
         log.debug("Process has terminated, stopping self")
         context.stop(self)
       }
