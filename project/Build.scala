@@ -1,10 +1,9 @@
-import bintray.Plugin.bintrayPublishSettings
-import bintray.Keys._
 import com.typesafe.sbt.SbtScalariform._
 import sbt._
 import sbt.Keys._
 import sbtrelease.ReleasePlugin._
 import scalariform.formatter.preferences._
+import bintray.BintrayKeys._
 
 object Build extends AutoPlugin {
 
@@ -17,7 +16,6 @@ object Build extends AutoPlugin {
   override def projectSettings =
     scalariformSettings ++
     releaseSettings ++
-    bintrayPublishSettings ++
     List(
       // Core settings
       organization := "com.typesafe.akka",
@@ -42,7 +40,7 @@ object Build extends AutoPlugin {
       // Release settings
       ReleaseKeys.versionBump := sbtrelease.Version.Bump.Minor,
       // Bintray settings
-      bintrayOrganization in bintray := Some("typesafe"),
-      repository in bintray := "maven-releases"
+      bintrayOrganization := Some("typesafe"),
+      bintrayRepository := "maven-releases"
     )
 }
