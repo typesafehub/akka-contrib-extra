@@ -152,6 +152,8 @@ class NonBlockingProcess(
   val process: NuProcess = {
     import JavaConverters._
 
+    System.setProperty("com.zaxxer.nuprocess.enableShutdownHook", "false")
+
     val pb = new NuProcessBuilder(command.asJava)
 
     pb.environment().putAll(environment.asJava)
