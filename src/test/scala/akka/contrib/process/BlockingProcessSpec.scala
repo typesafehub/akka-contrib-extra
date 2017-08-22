@@ -62,7 +62,8 @@ class BlockingProcessSpec extends WordSpec with Matchers with BeforeAndAfterAll 
       expectDestruction(viaDestroy = false)
     }
 
-    "be able to create the reference.conf specified limit of processes" in {
+    // FIXME: flaky test: timeout (3 seconds) during expectMsgAnyClassOf waiting for (class akka.actor.Terminated, class akka.contrib.process.BlockingProcess$Exited)
+    "be able to create the reference.conf specified limit of processes" ignore {
       val command = getClass.getResource("/echo.sh").getFile
       new File(command).setExecutable(true)
 
