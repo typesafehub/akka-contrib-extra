@@ -21,6 +21,13 @@ import scala.concurrent.duration.Duration
 import scala.concurrent.{ ExecutionContext, Future }
 
 object NonBlockingProcess {
+  /**
+   * Configuration for NuProcess. The users should be in charge of resource management,
+   * so the shutdown hook is disabled. Additionally, since this is async I/O, 1 thread
+   * should be plenty to deal with any I/O events.
+   */
+  System.setProperty("com.zaxxer.nuprocess.enableShutdownHook", "false")
+  System.setProperty("com.zaxxer.nuprocess.threads", "1")
 
   /**
    * Sent to the receiver on startup - specifies the streams used for managing input, output and error respectively.
@@ -148,11 +155,10 @@ class NonBlockingProcess(
     context.system.scheduler.schedule(inspectionInterval, inspectionInterval, self, Inspect)
 
   private val contextMat = ActorMaterializer()
+  private val systemMat = ActorMaterializer()(context.system)
 
   val process: NuProcess = {
     import JavaConverters._
-
-    System.setProperty("com.zaxxer.nuprocess.enableShutdownHook", "false")
 
     val pb = new NuProcessBuilder(command.asJava)
 
@@ -165,7 +171,7 @@ class NonBlockingProcess(
         // Create our stream based actors away from this one given that we want them to continue
         // for a small while post the actor dying (it may take a tiny bit longer for the process
         // to terminate).
-        implicit val stdioMaterializer: ActorMaterializer = ActorMaterializer()(context.system)
+        implicit val stdioMat: ActorMaterializer = systemMat
         val stdin =
           Sink
             .foreach[ByteString](bytes => nuProcess.writeStdin(bytes.toByteBuffer))
@@ -223,5 +229,7 @@ class NonBlockingProcess(
   override def postStop(): Unit = {
     inspectionTick.cancel()
     process.destroy(true)
+    contextMat.shutdown()
+    systemMat.shutdown()
   }
 }
