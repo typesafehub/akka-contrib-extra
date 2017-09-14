@@ -181,6 +181,10 @@ class NonBlockingProcess(
         val stdin =
           Sink
             .foreach[ByteString](bytes => nuProcess.writeStdin(bytes.toByteBuffer))
+            .mapMaterializedValue { future =>
+              future.onComplete(_ => nuProcess.closeStdin(false))
+              future
+            }
         val (out, stdout) =
           Source
             .queue[ByteString](stdoutBufferMaxChunks, OverflowStrategy.dropHead)

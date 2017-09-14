@@ -112,6 +112,24 @@ class NonBlockingProcessSpec extends WordSpec with Matchers with BeforeAndAfterA
         case _                                      => false
       }
     }
+
+    "close stdin when input stream terminates" in {
+      val command = getClass.getResource("/echo.sh").getFile
+      new File(command).setExecutable(true)
+      val streamProbe = TestProbe()
+      val exitProbe = TestProbe()
+      val stdinInput = List("abcd", "1234")
+      val receiver = system.actorOf(Props(new NonBlockingReceiver(streamProbe.ref, exitProbe.ref, command, stdinInput, 1)))
+      val process = Await.result(receiver.ask(NonBlockingReceiver.Process).mapTo[ActorRef], processCreationTimeout.duration)
+
+      exitProbe.expectMsgPF() {
+        case NonBlockingProcess.Exited(x) => x
+      } shouldEqual 0
+
+      exitProbe.watch(process)
+      exitProbe.expectTerminated(process)
+
+    }
   }
 
   override protected def afterAll(): Unit = {
