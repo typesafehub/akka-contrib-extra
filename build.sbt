@@ -13,3 +13,5 @@ libraryDependencies ++= List(
   Library.mockitoAll      % "test",
   Library.scalaTest       % "test"
 )
+
+bintrayRepository := "maven-releases"
