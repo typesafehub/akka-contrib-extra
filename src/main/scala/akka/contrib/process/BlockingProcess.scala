@@ -77,14 +77,16 @@ object BlockingProcess {
    * @param workingDir the working directory for the process; default is the current working directory
    * @param environment the environment for the process; default is `Map.emtpy`
    * @param stdioTimeout the amount of time to tolerate waiting for a process to communicate back to this actor
+   * @param autoFlush whether to automatically flush stdin on every element
    * @return Props for a [[BlockingProcess]] actor
    */
   def props(
     command: immutable.Seq[String],
     workingDir: File = new File(System.getProperty("user.dir")),
     environment: Map[String, String] = Map.empty,
-    stdioTimeout: Duration = Duration.Undefined) =
-    Props(new BlockingProcess(command, workingDir, environment, stdioTimeout))
+    stdioTimeout: Duration = Duration.Undefined,
+    autoFlush: Boolean = false) =
+    Props(new BlockingProcess(command, workingDir, environment, stdioTimeout, autoFlush))
 
   /**
    * This quoting functionality is as recommended per http://bugs.java.com/view_bug.do?bug_id=6511002
@@ -123,7 +125,8 @@ class BlockingProcess(
   command: immutable.Seq[String],
   directory: File,
   environment: Map[String, String],
-  stdioTimeout: Duration)
+  stdioTimeout: Duration,
+  autoFlush: Boolean)
     extends Actor with ActorLogging {
 
   import BlockingProcess._
@@ -147,7 +150,7 @@ class BlockingProcess(
     try {
       val selfDispatcherAttribute = ActorAttributes.dispatcher(blockingIODispatcherId)
 
-      val stdin = StreamConverters.fromOutputStream(() => process.getOutputStream())
+      val stdin = StreamConverters.fromOutputStream(() => process.getOutputStream(), autoFlush)
         .withAttributes(selfDispatcherAttribute)
         .mapMaterializedValue(_.andThen { case _ => self ! StdinTerminated })
 
