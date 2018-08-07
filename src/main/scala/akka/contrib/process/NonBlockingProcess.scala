@@ -4,7 +4,7 @@
 
 package akka.contrib.process
 
-import akka.actor.{ Actor, ActorLogging, NoSerializationVerificationNeeded, Props }
+import akka.actor.{ Actor, ActorLogging, Cancellable, NoSerializationVerificationNeeded, Props }
 import akka.stream.scaladsl.{ BroadcastHub, FileIO, Keep, Sink, Source, SourceQueueWithComplete }
 import akka.util.ByteString
 import java.nio.ByteBuffer
@@ -152,7 +152,7 @@ class NonBlockingProcess(
       TimeUnit.MILLISECONDS
     )
 
-  private val inspectionTick =
+  protected val inspectionTick: Cancellable =
     context.system.scheduler.schedule(inspectionInterval, inspectionInterval, self, Inspect)
 
   private val contextMat = ActorMaterializer()
