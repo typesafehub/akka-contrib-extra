@@ -38,7 +38,7 @@ class DirectivesSpec extends WordSpec with Matchers with Scalatest with RouteTes
 
     "provide a list of parameters to the inner route" in {
       Get("/ping?p=1&p=2&p=3") ~> parameterList('p.as[Int]) { echoComplete } ~> check {
-        responseAs[String] shouldBe "List(3, 2, 1)"
+        responseAs[String] shouldBe "List(1, 2, 3)"
       }
     }
 

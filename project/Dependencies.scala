@@ -1,12 +1,12 @@
 import sbt._
 
 object Version {
-  val akka       = "2.5.3"
-  val akkaHttp   = "10.0.8"
-  val mockito    = "1.9.5"
-  val nuprocess  = "1.1.2"
-  val scala      = "2.11.11"
-  val scalaTest  = "3.0.1"
+  val akka       = "2.5.14"
+  val akkaHttp   = "10.1.3"
+  val mockito    = "1.10.19"
+  val nuprocess  = "1.2.4"
+  val scala      = "2.11.12"
+  val scalaTest  = "3.0.5"
 }
 
 object Library {
