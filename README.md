@@ -5,8 +5,8 @@
 
 Welcome to akka-contrib-extra!
 
-The contents of this project are intended as an incubator for Akka related things that Reactive Runtime 
-has discovered useful in the course of its development. The intent is that these things will ultimately
-become PRs against the actual akka-contrib project.
+This project contains various utilities that are useful when working with Akka.
+
+This repository is not actively maintained, and intended to be retired. Useful pieces should be either proposed to be included in the main Akka, Alpakka or Akka HTTP projects, or migrated to the personal accounts of contributors willing to maintain the library. Feel free to migrate elements to other repositories (under the terms of the Apache license) or submit motivated proposals to include elements in the main Akka projects.
 
 &copy; Typesafe Inc., 2014
